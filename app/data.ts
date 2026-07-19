@@ -6,13 +6,14 @@ export type Chamber = {
   target: number;
   color: string;
   icon: string;
-  type: "essential" | "savings" | "flexible" | "investment" | "recurring" | "goal";
+  type: "essential" | "savings" | "flexible" | "investment" | "recurring" | "goal" | "debt";
+  sortOrder: number;
 };
 
 export type Account = {
   id: string;
   name: string;
-  type: "transaction" | "savings" | "credit" | "loan" | "investment";
+  type: "cash" | "transaction" | "savings" | "credit" | "loan" | "investment" | "asset";
   balance: number;
   availableBalance?: number;
   institutionName?: string;
@@ -20,6 +21,8 @@ export type Account = {
   interestRate?: number;
   includedInHoard: boolean;
   chamberId: string;
+  icon: string;
+  color: string;
   archived: boolean;
 };
 
@@ -38,6 +41,8 @@ export type Transaction = {
   status: "pending" | "cleared";
   unusual?: boolean;
   duplicate?: boolean;
+  duplicateOf?: string;
+  reviewedAt?: string;
   worthRating?: WorthRating;
   createdManually: boolean;
 };
@@ -50,11 +55,13 @@ export type UsageEvent = {
   note?: string;
 };
 
+export type SubscriptionCadence = "weekly" | "fortnightly" | "monthly" | "quarterly" | "annual";
+
 export type Subscription = {
   id: string;
   name: string;
   amount: number;
-  cadence: "monthly" | "annual";
+  cadence: SubscriptionCadence;
   nextCharge: string;
   categoryId: string;
   accountId: string;
@@ -122,6 +129,19 @@ export type Wish = {
   finalWorthRating?: WorthRating;
 };
 
+export type InvestmentPosition = {
+  id: string;
+  accountId: string;
+  name: string;
+  type: "fund" | "shares" | "retirement" | "cash" | "other";
+  units: number;
+  unitPrice: number;
+  contributions: number;
+  annualReturnAssumption: number;
+  note: string;
+  updatedAt: string;
+};
+
 export type ProjectionScenario = {
   expectedMonthlyIncome: number;
   essentialSpending: number;
@@ -131,6 +151,13 @@ export type ProjectionScenario = {
   savingsContribution: number;
   investmentContribution: number;
   oneOffPurchase: number;
+};
+
+export type NotificationPreferences = {
+  claimants: boolean;
+  wishes: boolean;
+  weeklyReview: boolean;
+  priceChanges: boolean;
 };
 
 export type DragonState = {
@@ -145,8 +172,11 @@ export type DragonState = {
     soundEnabled: boolean;
     hapticsEnabled: boolean;
     notificationsEnabled: boolean;
+    notificationPreferences: NotificationPreferences;
     plainLanguage: boolean;
+    fontScale: number;
     tutorialComplete: boolean;
+    tutorialChapter: number;
     preferredCurrency: string;
     locale: string;
     minimumBuffer: number;
@@ -161,6 +191,7 @@ export type DragonState = {
   quests: Quest[];
   debts: Debt[];
   wishes: Wish[];
+  investments: InvestmentPosition[];
   projections: {
     rangeMonths: number;
     activeScenario: string;
@@ -172,12 +203,14 @@ export type DragonState = {
     nextLevelXp: number;
     title: string;
     relics: string[];
+    unlockedCosmetics: string[];
     completedQuestCount: number;
+    milestones: string[];
   };
   updatedAt: string;
 };
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const daysFromNow = (days: number) => {
   const date = new Date();
@@ -190,6 +223,13 @@ const daysAgo = (days: number) => {
   date.setDate(date.getDate() - days);
   return date.toISOString();
 };
+
+const usageEvents = (count: number, intervalDays: number): UsageEvent[] => Array.from({ length: count }, (_, index) => ({
+  id: `seed-use-${count}-${index}`,
+  usedAt: daysAgo(index * intervalDays),
+  quantity: 1,
+  source: "manual",
+}));
 
 const quest = (input: Partial<Quest> & Pick<Quest, "id" | "title" | "description" | "category" | "xp" | "icon">): Quest => ({
   reason: input.description,
@@ -212,8 +252,11 @@ export const createSeedState = (): DragonState => ({
     soundEnabled: false,
     hapticsEnabled: true,
     notificationsEnabled: false,
+    notificationPreferences: { claimants: true, wishes: true, weeklyReview: false, priceChanges: true },
     plainLanguage: false,
+    fontScale: 1,
     tutorialComplete: false,
+    tutorialChapter: 0,
     preferredCurrency: "AUD",
     locale: "en-AU",
     minimumBuffer: 1200,
@@ -222,19 +265,19 @@ export const createSeedState = (): DragonState => ({
     lifestyleMonthlyCost: 3240,
   },
   chambers: [
-    { id: "hearth", name: "The Hearth", practicalName: "Everyday living", amount: 6240.3, target: 6800, color: "#ef4b24", icon: "flame", type: "essential" },
-    { id: "vault", name: "Deep Vault", practicalName: "Emergency fund", amount: 7850, target: 10000, color: "#0e6fce", icon: "vault", type: "savings" },
-    { id: "workshop", name: "Workshop", practicalName: "Projects & tools", amount: 2310.45, target: 3000, color: "#7542c8", icon: "hammer", type: "goal" },
-    { id: "roost", name: "The Roost", practicalName: "Fun & lifestyle", amount: 1245.78, target: 1500, color: "#dd3281", icon: "heart", type: "flexible" },
-    { id: "sleep", name: "Long Sleep", practicalName: "Investments & retirement", amount: 8650.22, target: 12000, color: "#27963c", icon: "sprout", type: "investment" },
-    { id: "tribute", name: "Tribute Hall", practicalName: "Bills & subscriptions", amount: 1102.6, target: 1400, color: "#c58a18", icon: "scroll", type: "recurring" },
-    { id: "wish", name: "Wish Vault", practicalName: "Future goals", amount: 1051.3, target: 1600, color: "#00a7b9", icon: "star", type: "goal" },
+    { id: "hearth", name: "The Hearth", practicalName: "Everyday living", amount: 6240.3, target: 6800, color: "#ef4b24", icon: "flame", type: "essential", sortOrder: 0 },
+    { id: "vault", name: "Deep Vault", practicalName: "Emergency fund", amount: 7850, target: 10000, color: "#0e6fce", icon: "vault", type: "savings", sortOrder: 1 },
+    { id: "workshop", name: "Workshop", practicalName: "Projects & tools", amount: 2310.45, target: 3000, color: "#7542c8", icon: "hammer", type: "goal", sortOrder: 2 },
+    { id: "roost", name: "The Roost", practicalName: "Fun & lifestyle", amount: 1245.78, target: 1500, color: "#dd3281", icon: "heart", type: "flexible", sortOrder: 3 },
+    { id: "sleep", name: "Long Sleep", practicalName: "Investments & retirement", amount: 8650.22, target: 12000, color: "#27963c", icon: "sprout", type: "investment", sortOrder: 4 },
+    { id: "tribute", name: "Tribute Hall", practicalName: "Bills & subscriptions", amount: 1102.6, target: 1400, color: "#c58a18", icon: "scroll", type: "recurring", sortOrder: 5 },
+    { id: "wish", name: "Wish Vault", practicalName: "Future goals", amount: 1051.3, target: 1600, color: "#00a7b9", icon: "star", type: "goal", sortOrder: 6 },
   ],
   accounts: [
-    { id: "a1", name: "Daily Gold", type: "transaction", balance: 6210.3, availableBalance: 6210.3, institutionName: "Sky Vault Credit Union", includedInHoard: true, chamberId: "hearth", archived: false },
-    { id: "a2", name: "Deep Vault Reserve", type: "savings", balance: 7850, institutionName: "Sky Vault Credit Union", includedInHoard: true, chamberId: "vault", archived: false },
-    { id: "a3", name: "Long Sleep Fund", type: "investment", balance: 8650.22, institutionName: "Northstar", includedInHoard: true, chamberId: "sleep", archived: false },
-    { id: "a4", name: "Ember Card", type: "credit", balance: -2310, availableBalance: 1690, creditLimit: 4000, interestRate: 22.49, institutionName: "Ember Bank", includedInHoard: true, chamberId: "tribute", archived: false },
+    { id: "a1", name: "Daily Gold", type: "transaction", balance: 6210.3, availableBalance: 6210.3, institutionName: "Sky Vault Credit Union", includedInHoard: true, chamberId: "hearth", icon: "wallet", color: "#e99a26", archived: false },
+    { id: "a2", name: "Deep Vault Reserve", type: "savings", balance: 7850, institutionName: "Sky Vault Credit Union", includedInHoard: true, chamberId: "vault", icon: "vault", color: "#2377ca", archived: false },
+    { id: "a3", name: "Long Sleep Fund", type: "investment", balance: 8650.22, institutionName: "Northstar", includedInHoard: true, chamberId: "sleep", icon: "sprout", color: "#2a9b54", archived: false },
+    { id: "a4", name: "Ember Card", type: "credit", balance: -2310, availableBalance: 1690, creditLimit: 4000, interestRate: 22.49, institutionName: "Ember Bank", includedInHoard: true, chamberId: "tribute", icon: "card", color: "#d85836", archived: false },
   ],
   transactions: [
     { id: "t1", accountId: "a1", date: daysAgo(1), merchant: "Skyforge Payroll", amount: 3240, direction: "income", category: "Income", note: "Fortnightly pay", status: "cleared", createdManually: false },
@@ -254,11 +297,11 @@ export const createSeedState = (): DragonState => ({
     { id: "t15", accountId: "a1", date: daysAgo(14), merchant: "Freelance Bounty", amount: 460, direction: "income", category: "Income", note: "Design work", status: "cleared", createdManually: true },
   ],
   subscriptions: [
-    { id: "s1", name: "Streamkeep", amount: 15.49, cadence: "monthly", nextCharge: daysFromNow(2), categoryId: "tribute", accountId: "a1", usageCount: 11, usageEvents: [], lastUsed: daysAgo(1), priceHistory: [{ amount: 15.49, changedAt: daysAgo(180) }], trackingMode: "every-use", valueRating: "Mostly", cancellationNotes: "Manage from the Streamkeep account page.", reminderDays: 2, reminderEnabled: true, usageQuestDays: 30, questEnabled: true, color: "#e93354", glyph: "S" },
-    { id: "s2", name: "Songbird Plus", amount: 10.99, cadence: "monthly", nextCharge: daysFromNow(5), categoryId: "tribute", accountId: "a1", usageCount: 24, usageEvents: [], lastUsed: daysAgo(0), priceHistory: [{ amount: 10.99, changedAt: daysAgo(220) }], trackingMode: "every-use", valueRating: "Absolutely", cancellationNotes: "", reminderDays: 2, reminderEnabled: false, usageQuestDays: 30, questEnabled: true, color: "#20bc72", glyph: "♫" },
-    { id: "s3", name: "CloudQuill", amount: 12, cadence: "monthly", nextCharge: daysFromNow(8), categoryId: "tribute", accountId: "a1", usageCount: 8, usageEvents: [], lastUsed: daysAgo(3), priceHistory: [{ amount: 9, changedAt: daysAgo(365) }, { amount: 12, changedAt: daysAgo(12) }], priceChange: 3, trackingMode: "weekly", valueRating: "Mostly", cancellationNotes: "Export notebooks before cancelling.", reminderDays: 3, reminderEnabled: true, usageQuestDays: 30, questEnabled: true, color: "#6957df", glyph: "Q" },
+    { id: "s1", name: "Streamkeep", amount: 15.49, cadence: "monthly", nextCharge: daysFromNow(2), categoryId: "tribute", accountId: "a1", usageCount: 11, usageEvents: usageEvents(11, 2), lastUsed: daysAgo(1), priceHistory: [{ amount: 15.49, changedAt: daysAgo(180) }], trackingMode: "every-use", valueRating: "Mostly", cancellationNotes: "Manage from the Streamkeep account page.", reminderDays: 2, reminderEnabled: true, usageQuestDays: 30, questEnabled: true, color: "#e93354", glyph: "S" },
+    { id: "s2", name: "Songbird Plus", amount: 10.99, cadence: "monthly", nextCharge: daysFromNow(5), categoryId: "tribute", accountId: "a1", usageCount: 24, usageEvents: usageEvents(24, 1), lastUsed: daysAgo(0), priceHistory: [{ amount: 10.99, changedAt: daysAgo(220) }], trackingMode: "every-use", valueRating: "Absolutely", cancellationNotes: "", reminderDays: 2, reminderEnabled: false, usageQuestDays: 30, questEnabled: true, color: "#20bc72", glyph: "♫" },
+    { id: "s3", name: "CloudQuill", amount: 12, cadence: "monthly", nextCharge: daysFromNow(8), categoryId: "tribute", accountId: "a1", usageCount: 8, usageEvents: usageEvents(8, 3), lastUsed: daysAgo(3), priceHistory: [{ amount: 9, changedAt: daysAgo(365) }, { amount: 12, changedAt: daysAgo(12) }], priceChange: 3, trackingMode: "weekly", valueRating: "Mostly", cancellationNotes: "Export notebooks before cancelling.", reminderDays: 3, reminderEnabled: true, usageQuestDays: 30, questEnabled: true, color: "#6957df", glyph: "Q" },
     { id: "s4", name: "Scrollbox", amount: 7.99, cadence: "monthly", nextCharge: daysFromNow(12), categoryId: "tribute", accountId: "a1", usageCount: 0, usageEvents: [], lastUsed: daysAgo(45), priceHistory: [{ amount: 7.99, changedAt: daysAgo(120) }], trackingMode: "monthly", valueRating: "Not rated", cancellationNotes: "", reminderDays: 3, reminderEnabled: true, usageQuestDays: 30, questEnabled: true, color: "#eb9a21", glyph: "C" },
-    { id: "s5", name: "EmberGym", amount: 29, cadence: "monthly", nextCharge: daysFromNow(16), categoryId: "tribute", accountId: "a1", usageCount: 3, usageEvents: [], lastUsed: daysAgo(8), priceHistory: [{ amount: 29, changedAt: daysAgo(90) }], trackingMode: "every-use", valueRating: "Mostly", cancellationNotes: "One full billing period notice.", reminderDays: 5, reminderEnabled: true, usageQuestDays: 14, questEnabled: true, color: "#49718f", glyph: "E" },
+    { id: "s5", name: "EmberGym", amount: 29, cadence: "monthly", nextCharge: daysFromNow(16), categoryId: "tribute", accountId: "a1", usageCount: 3, usageEvents: usageEvents(3, 7), lastUsed: daysAgo(8), priceHistory: [{ amount: 29, changedAt: daysAgo(90) }], trackingMode: "every-use", valueRating: "Mostly", cancellationNotes: "One full billing period notice.", reminderDays: 5, reminderEnabled: true, usageQuestDays: 14, questEnabled: true, color: "#49718f", glyph: "E" },
   ],
   quests: [
     quest({ id: "q-unusual-t5", title: "A Suspicious Charge", description: "A charge looks unusual. Review it?", reason: "Unknown Rune Shop differs from your recent pattern.", category: "Guard", xp: 10, icon: "shield", relatedEntityId: "t5" }),
@@ -273,6 +316,10 @@ export const createSeedState = (): DragonState => ({
   ],
   wishes: [
     { id: "w1", name: "Mechanical Keyboard", price: 179, restDays: 3, endsAt: daysFromNow(2), category: "Workshop", desiredDate: daysFromNow(14), fundingSource: "Free Gold", reason: "A quieter, more comfortable writing setup.", status: "resting" },
+  ],
+  investments: [
+    { id: "i1", accountId: "a3", name: "Northstar Balanced Fund", type: "fund", units: 104.72, unitPrice: 58.25, contributions: 5400, annualReturnAssumption: 5.5, note: "Long-term diversified holding.", updatedAt: daysAgo(1) },
+    { id: "i2", accountId: "a3", name: "Retirement Reserve", type: "retirement", units: 1, unitPrice: 2550, contributions: 2380, annualReturnAssumption: 5, note: "Manually tracked retirement balance.", updatedAt: daysAgo(3) },
   ],
   projections: {
     rangeMonths: 12,
@@ -290,7 +337,9 @@ export const createSeedState = (): DragonState => ({
     nextLevelXp: 2000,
     title: "The Hoardkeeper",
     relics: ["Emerald Crown", "First Key", "Patient Hourglass", "Flight Compass", "Deep Vault Gem"],
+    unlockedCosmetics: ["Emerald", "Sky"],
     completedQuestCount: 12,
+    milestones: ["first-buffer", "first-claimant", "first-rest", "first-flight", "vault-5000"],
   },
   updatedAt: new Date().toISOString(),
 });
@@ -303,10 +352,13 @@ export function normalizeState(input: unknown): DragonState {
   const source = input as Partial<DragonState>;
   if (!source.profile || !Array.isArray(source.chambers)) throw new Error("Invalid Dragon Mode export");
 
-  const accounts = Array.isArray(source.accounts) ? source.accounts.map((account) => ({
+  const chambers = source.chambers.map((chamber, index) => ({ ...chamber, sortOrder: chamber.sortOrder ?? index }));
+  const accounts = Array.isArray(source.accounts) ? source.accounts.map((account, index) => ({
     ...account,
     includedInHoard: account.includedInHoard ?? true,
     archived: account.archived ?? false,
+    icon: account.icon ?? "wallet",
+    color: account.color ?? ["#e99a26", "#2377ca", "#2a9b54", "#d85836"][index % 4],
   })) : seed.accounts;
   const fallbackAccountId = accounts[0]?.id ?? "a1";
   const transactions = Array.isArray(source.transactions) ? source.transactions.map((transaction) => ({
@@ -351,14 +403,19 @@ export function normalizeState(input: unknown): DragonState {
     ...seed,
     ...source,
     schemaVersion: SCHEMA_VERSION,
-    profile: { ...seed.profile, ...source.profile },
-    chambers: source.chambers as Chamber[],
+    profile: {
+      ...seed.profile,
+      ...source.profile,
+      notificationPreferences: { ...seed.profile.notificationPreferences, ...(source.profile.notificationPreferences ?? {}) },
+    },
+    chambers,
     accounts,
     transactions,
     subscriptions,
     quests,
     debts,
     wishes,
+    investments: Array.isArray(source.investments) ? source.investments : seed.investments,
     projections: {
       ...seed.projections,
       ...source.projections,

@@ -1,26 +1,50 @@
-import type { Debt, DragonState, ProjectionScenario, Quest, Transaction } from "./data";
+import type { Debt, DragonState, ProjectionScenario, Quest, Subscription, SubscriptionCadence, Transaction } from "./data";
 
-const monthStart = () => {
-  const date = new Date();
-  return new Date(date.getFullYear(), date.getMonth(), 1).getTime();
+const DAY_MS = 86_400_000;
+
+const monthBounds = (offset = 0) => {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() + offset, 1).getTime();
+  const end = new Date(now.getFullYear(), now.getMonth() + offset + 1, 1).getTime();
+  return { start, end };
 };
+
+export const cadenceMonthlyMultiplier: Record<SubscriptionCadence, number> = {
+  weekly: 52 / 12,
+  fortnightly: 26 / 12,
+  monthly: 1,
+  quarterly: 1 / 3,
+  annual: 1 / 12,
+};
+
+export const cadencePeriodDays: Record<SubscriptionCadence, number> = {
+  weekly: 7,
+  fortnightly: 14,
+  monthly: 30.4375,
+  quarterly: 91.3125,
+  annual: 365.25,
+};
+
+export const monthlySubscriptionAmount = (subscription: Subscription) => subscription.amount * cadenceMonthlyMultiplier[subscription.cadence];
 
 export function getHoardSummary(state: DragonState) {
   const available = state.accounts
-    .filter((account) => !account.archived && account.includedInHoard && account.type === "transaction")
+    .filter((account) => !account.archived && account.includedInHoard && (account.type === "transaction" || account.type === "cash"))
     .reduce((sum, account) => sum + (account.availableBalance ?? account.balance), 0);
   const committed = monthlyTribute(state)
     + state.debts.reduce((sum, debt) => sum + debt.minimum, 0)
     + state.profile.essentialMonthlyCost;
   const guarded = state.chambers.find((chamber) => chamber.id === "vault")?.amount ?? 0;
-  const invested = state.chambers.find((chamber) => chamber.id === "sleep")?.amount ?? 0;
+  const investedPositions = state.investments.reduce((sum, position) => sum + position.units * position.unitPrice, 0);
+  const invested = investedPositions || state.chambers.find((chamber) => chamber.id === "sleep")?.amount || 0;
   const total = state.chambers.reduce((sum, chamber) => sum + chamber.amount, 0);
-  const freeGold = Math.max(0, available - committed - state.profile.minimumBuffer);
-  return { available, committed, guarded, invested, total, freeGold };
+  const freeGoldRaw = available - committed - state.profile.minimumBuffer;
+  const freeGold = Math.max(0, freeGoldRaw);
+  return { available, committed, guarded, invested, total, freeGold, freeGoldRaw };
 }
 
 export const monthlyTribute = (state: DragonState) => state.subscriptions.reduce(
-  (sum, subscription) => sum + (subscription.cadence === "annual" ? subscription.amount / 12 : subscription.amount),
+  (sum, subscription) => sum + monthlySubscriptionAmount(subscription),
   0,
 );
 
@@ -40,21 +64,38 @@ export const hibernationModes = (state: DragonState) => ({
   "Current lifestyle": hibernationMonths(state, state.profile.lifestyleMonthlyCost),
 });
 
-export function currentMonthTransactions(state: DragonState) {
-  const start = monthStart();
-  return state.transactions.filter((transaction) => new Date(transaction.date).getTime() >= start);
+export function transactionsForMonth(state: DragonState, offset = 0) {
+  const { start, end } = monthBounds(offset);
+  return state.transactions.filter((transaction) => {
+    const timestamp = new Date(transaction.date).getTime();
+    return timestamp >= start && timestamp < end;
+  });
 }
 
-export function getMonthlyFlow(state: DragonState) {
-  const transactions = currentMonthTransactions(state);
-  const inflow = transactions.filter((item) => item.direction === "income").reduce((sum, item) => sum + item.amount, 0);
-  const outflow = transactions.filter((item) => item.direction === "expense").reduce((sum, item) => sum + item.amount, 0);
+export function currentMonthTransactions(state: DragonState) {
+  return transactionsForMonth(state);
+}
+
+export function getMonthlyFlow(state: DragonState, offset = 0) {
+  const transactions = transactionsForMonth(state, offset);
+  const inflow = transactions.filter((item) => item.direction === "income" && item.status === "cleared").reduce((sum, item) => sum + item.amount, 0);
+  const outflow = transactions.filter((item) => item.direction === "expense" && item.status === "cleared").reduce((sum, item) => sum + item.amount, 0);
   return { inflow, outflow, net: inflow - outflow, transactions };
 }
 
-export function getCategoryBreakdown(state: DragonState) {
+export function getMonthlyTrend(state: DragonState, months = 6) {
+  return Array.from({ length: months }, (_, index) => {
+    const offset = index - (months - 1);
+    const date = new Date();
+    date.setMonth(date.getMonth() + offset);
+    const flow = getMonthlyFlow(state, offset);
+    return { label: date.toLocaleDateString(state.profile.locale, { month: "short" }), ...flow };
+  });
+}
+
+export function getCategoryBreakdown(state: DragonState, offset = 0) {
   const totals = new Map<string, number>();
-  currentMonthTransactions(state).filter((item) => item.direction === "expense").forEach((item) => {
+  transactionsForMonth(state, offset).filter((item) => item.direction === "expense" && item.status === "cleared").forEach((item) => {
     totals.set(item.category, (totals.get(item.category) ?? 0) + item.amount);
   });
   const rows = [...totals.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
@@ -65,72 +106,170 @@ export function getCategoryBreakdown(state: DragonState) {
 export function getWorthSummary(state: DragonState) {
   const scored = state.transactions.filter((item) => item.direction === "expense" && item.worthRating);
   const positive = scored.filter((item) => item.worthRating === "Absolutely" || item.worthRating === "Mostly").length;
-  return { rated: scored.length, positivePercent: scored.length ? Math.round((positive / scored.length) * 100) : 0 };
+  const byRating = scored.reduce<Record<string, number>>((summary, item) => {
+    const rating = item.worthRating ?? "Unrated";
+    summary[rating] = (summary[rating] ?? 0) + item.amount;
+    return summary;
+  }, {});
+  return { rated: scored.length, positivePercent: scored.length ? Math.round((positive / scored.length) * 100) : 0, byRating };
+}
+
+export function currentBillingUsage(subscription: Subscription, now = Date.now()) {
+  const nextCharge = new Date(subscription.nextCharge).getTime();
+  const periodStart = nextCharge - cadencePeriodDays[subscription.cadence] * DAY_MS;
+  const periodEnd = nextCharge > now ? nextCharge : now;
+  return subscription.usageEvents
+    .filter((event) => {
+      const timestamp = new Date(event.usedAt).getTime();
+      return timestamp >= periodStart && timestamp <= periodEnd;
+    })
+    .reduce((sum, event) => sum + event.quantity, 0);
 }
 
 export function subscriptionCostPerUse(state: DragonState, subscriptionId: string) {
   const subscription = state.subscriptions.find((item) => item.id === subscriptionId);
   if (!subscription) return 0;
-  const monthly = subscription.cadence === "monthly" ? subscription.amount : subscription.amount / 12;
-  return subscription.usageCount ? monthly / subscription.usageCount : monthly;
+  const uses = currentBillingUsage(subscription);
+  return uses ? subscription.amount / uses : subscription.amount;
 }
+
+const generatedQuest = (input: Pick<Quest, "id" | "title" | "description" | "reason" | "category" | "xp" | "icon"> & Partial<Quest>): Quest => ({
+  difficulty: "Small",
+  estimatedMinutes: 2,
+  completed: false,
+  generatedAt: new Date().toISOString(),
+  ...input,
+});
 
 export function getActiveQuests(state: DragonState): Quest[] {
   const now = Date.now();
   const stored = [...state.quests];
   const ensure = (candidate: Quest) => {
-    if (!stored.some((item) => item.id === candidate.id)) stored.push(candidate);
+    const historical = stored.find((item) => item.id === candidate.id);
+    if (!historical) stored.push(candidate);
   };
 
-  state.transactions.filter((item) => item.unusual).forEach((transaction) => ensure({
+  state.transactions.filter((item) => item.unusual && !item.reviewedAt).forEach((transaction) => ensure(generatedQuest({
     id: `q-unusual-${transaction.id}`,
     title: "A Suspicious Charge",
     description: `${transaction.merchant} looks unusual. Review it?`,
-    reason: "It differs from your recent pattern.",
+    reason: "It differs from the pattern you mapped. It may still be entirely valid.",
     category: "Guard",
-    difficulty: "Small",
-    estimatedMinutes: 2,
     xp: 10,
-    completed: false,
     relatedEntityId: transaction.id,
-    generatedAt: new Date().toISOString(),
     icon: "shield",
-  }));
+  })));
+
+  state.transactions.filter((item) => item.duplicate && !item.reviewedAt).forEach((transaction) => ensure(generatedQuest({
+    id: `q-duplicate-${transaction.id}`,
+    title: "Possible Echo Charge",
+    description: `${transaction.merchant} may appear twice. Check the pair?`,
+    reason: "Only you can confirm whether two similar movements are both expected.",
+    category: "Guard",
+    xp: 12,
+    relatedEntityId: transaction.id,
+    icon: "shield",
+  })));
 
   const hasCategorisationQuest = stored.some((item) => item.id === "q-categorise" && !item.completed && !item.dismissedAt);
-  if (!hasCategorisationQuest) state.transactions.filter((item) => item.category === "Uncategorised").forEach((transaction) => ensure({
+  if (!hasCategorisationQuest) state.transactions.filter((item) => item.category === "Uncategorised").forEach((transaction) => ensure(generatedQuest({
     id: `q-category-${transaction.id}`,
     title: "Place Lost Gold",
     description: `Choose a chamber for ${transaction.merchant}.`,
     reason: "One clear category improves every Scrying view.",
     category: "Tend",
-    difficulty: "Small",
     estimatedMinutes: 1,
     xp: 8,
-    completed: false,
     relatedEntityId: transaction.id,
-    generatedAt: new Date().toISOString(),
     icon: "list",
-  }));
+  })));
 
-  state.subscriptions.filter((item) => item.questEnabled && item.lastUsed && (now - new Date(item.lastUsed).getTime()) / 86_400_000 >= item.usageQuestDays).forEach((subscription) => ensure({
+  state.subscriptions.filter((item) => item.questEnabled && item.lastUsed && (now - new Date(item.lastUsed).getTime()) / DAY_MS >= item.usageQuestDays).forEach((subscription) => ensure(generatedQuest({
     id: `q-unused-${subscription.id}`,
     title: "Unused Claimant",
-    description: `No use has been logged for ${subscription.name} in ${Math.floor((now - new Date(subscription.lastUsed!).getTime()) / 86_400_000)} days.`,
-    reason: `It renews soon. No logged use does not necessarily mean no use.`,
+    description: `No use has been logged for ${subscription.name} in ${Math.floor((now - new Date(subscription.lastUsed!).getTime()) / DAY_MS)} days.`,
+    reason: "No logged use does not necessarily mean no use. A calm review is enough.",
     category: "Guard",
-    difficulty: "Small",
-    estimatedMinutes: 2,
     xp: 15,
-    completed: false,
     relatedEntityId: subscription.id,
-    generatedAt: new Date().toISOString(),
     icon: "scroll",
+  })));
+
+  state.subscriptions.filter((item) => item.priceChange && item.priceChange > 0).forEach((subscription) => ensure(generatedQuest({
+    id: `q-price-${subscription.id}-${subscription.amount}`,
+    title: "A Claimant Changed Tribute",
+    description: `${subscription.name} increased by ${subscription.priceChange?.toFixed(2)}.`,
+    reason: "A price change deserves visibility, not an automatic cancellation.",
+    category: "Guard",
+    xp: 12,
+    relatedEntityId: subscription.id,
+    icon: "scroll",
+  })));
+
+  if (getHoardSummary(state).freeGoldRaw < 0) ensure(generatedQuest({
+    id: "q-buffer-watch",
+    title: "Protect the Next Seven Days",
+    description: "Committed gold is pressing against your protected buffer.",
+    reason: "The hoard is tighter than expected, but one small adjustment may be enough.",
+    category: "Guard",
+    xp: 18,
+    icon: "shield",
   }));
 
+  state.debts.filter((debt) => debt.progress >= 75).forEach((debt) => ensure(generatedQuest({
+    id: `q-debt-milestone-${debt.id}-75`,
+    title: "A Chain Is Nearly Loose",
+    description: `${debt.name} has crossed 75% of its mapped path.`,
+    reason: "Progress remains part of your legacy even if the balance changes later.",
+    category: "Grow",
+    xp: 20,
+    relatedEntityId: debt.id,
+    icon: "vault",
+  })));
+
+  const activeProjection = state.projections.scenarios[state.projections.activeScenario];
+  if (activeProjection && projectScenario(state, activeProjection, 3).monthlyNet < 0) ensure(generatedQuest({
+    id: `q-flight-review-${state.projections.activeScenario}`,
+    title: "The Flight Path Changed",
+    description: "Your active three-month path now trends downward.",
+    reason: "A projection is an estimate. Reviewing assumptions is useful; changing course is optional.",
+    category: "Learn",
+    xp: 14,
+    icon: "star",
+  }));
+
+  const categoryOrder: Record<Quest["category"], number> = { Guard: 0, Grow: 1, Learn: 2, Tend: 3 };
   return stored
     .filter((item) => !item.completed && !item.dismissedAt && (!item.snoozedUntil || new Date(item.snoozedUntil).getTime() <= now))
-    .sort((a, b) => (a.category === "Guard" ? -1 : 1) - (b.category === "Guard" ? -1 : 1));
+    .sort((a, b) => categoryOrder[a.category] - categoryOrder[b.category] || b.xp - a.xp);
+}
+
+export function addProgressionXp(state: DragonState, amount: number, milestone?: string) {
+  const xp = state.progression.xp + amount;
+  let level = state.progression.level;
+  let nextLevelXp = state.progression.nextLevelXp;
+  const relics = [...state.progression.relics];
+  const unlockedCosmetics = [...state.progression.unlockedCosmetics];
+  while (xp >= nextLevelXp) {
+    level += 1;
+    nextLevelXp += 250 + level * 50;
+    const relic = `Level ${level} Sigil`;
+    if (!relics.includes(relic)) relics.push(relic);
+    const cosmetic = level % 2 === 0 ? "Amethyst" : "Ember";
+    if (!unlockedCosmetics.includes(cosmetic)) unlockedCosmetics.push(cosmetic);
+  }
+  return {
+    ...state.progression,
+    xp,
+    level,
+    nextLevelXp,
+    title: level >= 10 ? "The Ancient Guardian" : state.progression.title,
+    relics,
+    unlockedCosmetics,
+    milestones: milestone && !state.progression.milestones.includes(milestone)
+      ? [...state.progression.milestones, milestone]
+      : state.progression.milestones,
+  };
 }
 
 export const orderDebts = (debts: Debt[], strategy: string) => {
@@ -145,21 +284,22 @@ export function estimateDebtPlan(debts: Debt[], strategy: string, extraMonthly: 
   let months = 0;
   let interestPaid = 0;
   let firstVictoryMonth = 0;
-  const startingFirst = working[0]?.balance ?? 0;
+  const firstDebtId = working[0]?.id;
   while (working.some((debt) => debt.balance > 0.01) && months < 600) {
     months += 1;
     let rollover = extraMonthly;
     working = orderDebts(working, strategy);
+    const active = working.find((item) => item.balance > 0);
     for (const debt of working) {
       if (debt.balance <= 0) continue;
       const interest = debt.balance * (debt.apr / 100 / 12);
       interestPaid += interest;
       debt.balance += interest;
-      const payment = Math.min(debt.balance, debt.minimum + (debt === working.find((item) => item.balance > 0) ? rollover : 0));
+      const payment = Math.min(debt.balance, debt.minimum + (debt.id === active?.id ? rollover : 0));
       debt.balance -= payment;
       if (payment < debt.minimum) rollover += debt.minimum - payment;
     }
-    if (!firstVictoryMonth && startingFirst - (working[0]?.balance ?? 0) >= Math.min(500, startingFirst)) firstVictoryMonth = months;
+    if (!firstVictoryMonth && firstDebtId && (working.find((item) => item.id === firstDebtId)?.balance ?? 0) <= 0.01) firstVictoryMonth = months;
   }
   return { months, interestPaid, firstVictoryMonth: firstVictoryMonth || Math.min(months, 1) };
 }
@@ -175,13 +315,19 @@ export function projectScenario(state: DragonState, scenario: ProjectionScenario
     - monthlyDebtMinimum
     - scenario.savingsContribution
     - scenario.investmentContribution;
+  const weightedReturn = state.investments.length
+    ? state.investments.reduce((sum, position) => sum + position.annualReturnAssumption * position.units * position.unitPrice, 0)
+      / Math.max(1, state.investments.reduce((sum, position) => sum + position.units * position.unitPrice, 0))
+    : 0;
+  const monthlyInvestmentReturn = weightedReturn / 100 / 12;
   const points = Array.from({ length: months + 1 }, (_, index) => {
     const oneOff = index > 0 ? scenario.oneOffPurchase : 0;
-    return Math.max(0, start + monthlyNet * index - oneOff);
+    const investmentGrowth = getHoardSummary(state).invested * (Math.pow(1 + monthlyInvestmentReturn, index) - 1);
+    return Math.max(0, start + monthlyNet * index - oneOff + investmentGrowth);
   });
   const end = points.at(-1) ?? start;
-  const uncertainty = Math.max(600, Math.abs(monthlyNet) * 1.5);
-  return { start, end, low: Math.max(0, end - uncertainty), high: end + uncertainty, monthlyNet, points };
+  const uncertainty = Math.max(600, Math.abs(monthlyNet) * 1.5 + months * 45);
+  return { start, end, low: Math.max(0, end - uncertainty), high: end + uncertainty, monthlyNet, points, weightedReturn };
 }
 
 export function searchTransactions(transactions: Transaction[], query: string) {

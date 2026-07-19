@@ -7,14 +7,14 @@ Dragon Mode is a visual-first fantasy finance mobile MVP. It turns accounts, spe
 ## Included MVP
 
 - Ten navigable reference areas across one consistent five-tab mobile bar.
-- Seeded demo hoard with chambers, accounts, transactions, claimants, debts, quests, a resting wish, progression, and relics.
-- Full add/edit/delete flows for transactions, accounts, subscriptions, debts, and wishes.
+- Seeded demo hoard with chambers, accounts, transactions, claimants, debts, investments, quests, resting wishes, progression, and relics.
+- Full add/edit/archive/delete flows for chambers, transactions, accounts, subscriptions, debts, wishes, and manually tracked investments.
 - IndexedDB persistence with JSON import/export and demo reset.
-- Subscription usage logging and cost-per-logged-use calculations.
-- Quest completion with permanent XP progression.
-- Analytics, hibernation estimate, and editable projection scenarios.
+- Billing-period subscription usage, weekly through annual cadences, reminders, price history, and cost-per-use calculations.
+- Rules-driven unusual, duplicate, categorisation, subscription, buffer, debt, and projection quests with permanent XP progression.
+- Live cash-flow analytics, hibernation modes, six-month trends, and editable multi-path projections.
 - Debt strategy comparison and next-victory milestones.
-- Skippable story tutorial plus reduced-motion, sound, haptics, reminders, and plain-language settings.
+- Eight-chapter skippable tutorial plus reduced-motion, Dynamic Type scaling, sound, haptics, actionable reminders, plain-language mode, currency, and locale settings.
 - Branded install icons, launch screens, PWA metadata, and synced native iOS/Android projects.
 - Cloudflare-compatible Sites build for private hosted previews.
 
@@ -34,6 +34,8 @@ npm run dev
 ```bash
 npm run build
 npm run mobile:build
+npm test
+npm run lint
 npx tsc --noEmit
 ```
 
