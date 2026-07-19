@@ -420,3 +420,323 @@ button:focus-visible, input:focus-visible, select:focus-visible, label:focus-wit
   .dragon-status-art { height: 255px; }
   .wish-product-art { height: 118px; }.wish-frame { min-height: 170px; }
 }
+
+/* Environmental composition pass
+   References define colour, scale, and fantasy metaphor. Their inconsistent
+   crops and navigation are not treated as literal layout requirements. */
+.screen {
+  --world-image: none;
+  --world-position: center top;
+  --world-opacity: .2;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.screen::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0 0 auto;
+  height: min(66vh, 590px);
+  pointer-events: none;
+  background-image:
+    linear-gradient(180deg, rgba(6, 13, 30, .04) 0 42%, rgba(7, 18, 37, .72) 76%, #08172e 100%),
+    var(--world-image);
+  background-position: center, var(--world-position);
+  background-repeat: no-repeat;
+  background-size: cover;
+  opacity: var(--world-opacity);
+  filter: saturate(1.12) contrast(1.04);
+  -webkit-mask-image: linear-gradient(#000 0 74%, transparent 100%);
+  mask-image: linear-gradient(#000 0 74%, transparent 100%);
+}
+
+.screen > :not(.screen-header) { position: relative; z-index: 1; }
+.screen-header { backdrop-filter: blur(15px) saturate(1.18); }
+
+.screen-lair { --world-image: url("/art/lair-guardian-v2.png"); --world-position: center 36%; --world-opacity: .18; }
+.screen-hoard { --world-image: url("/art/legacy-treasure-v3.png"); --world-position: 70% 8%; --world-opacity: .24; }
+.screen-quests { --world-image: url("/art/legacy-treasure-v3.png"); --world-position: 58% 9%; --world-opacity: .16; }
+.screen-scrying { --world-image: url("/art/hibernation-guardian-v3.png"); --world-position: 68% 8%; --world-opacity: .23; }
+.screen-flight { --world-image: url("/art/flight-wizard-v3.png"); --world-position: 16% 5%; --world-opacity: .16; }
+.screen-tribute { --world-image: url("/art/tribute-guardian-v3.png"); --world-position: 72% 7%; --world-opacity: .2; }
+.screen-wish { --world-image: url("/art/wish-vault-v2.png"); --world-position: 57% 7%; --world-opacity: .22; }
+.screen-dragon { --world-image: url("/art/dragon-guardian-v2.png"); --world-position: center 9%; --world-opacity: .18; }
+.screen-debt { --world-image: url("/art/debt-victory-v3.png"); --world-position: 70% 8%; --world-opacity: .26; }
+.screen-legacy { --world-image: url("/art/legacy-treasure-v3.png"); --world-position: 68% 8%; --world-opacity: .26; }
+.screen-investments { --world-image: url("/art/hibernation-guardian-v3.png"); --world-position: 73% 7%; --world-opacity: .27; }
+.screen-settings { --world-image: url("/art/tribute-guardian-v3.png"); --world-position: 72% 7%; --world-opacity: .17; }
+
+/* The main dragon now belongs to the Lair instead of sitting inside a card. */
+.dragon-hero {
+  width: calc(100% + 24px);
+  height: 252px;
+  margin: 8px -12px 0;
+  border-radius: 0;
+  background-position: center 52%;
+  box-shadow: inset 0 -76px 56px rgba(7, 27, 49, .82), inset 0 1px rgba(255, 244, 177, .32);
+}
+.dragon-hero::before, .dragon-status-art::before, .wish-frame::before { display: none; }
+.dragon-hero .hero-shine { background: linear-gradient(180deg, transparent 50%, rgba(7, 28, 51, .22) 68%, #0a2b4b 100%); }
+.dragon-name { left: 15px; bottom: 18px; background: rgba(5, 26, 45, .66); backdrop-filter: blur(8px); }
+
+/* Full-bleed world scenes. Text remains on compact glass plates, not image boxes. */
+.hoard-total,
+.hibernation-card,
+.tribute-alert,
+.investment-hero,
+.wizard-guide,
+.wish-frame,
+.victory-panel,
+.legacy-hero,
+.keeper-desk {
+  width: calc(100% + 24px);
+  margin-right: -12px;
+  margin-left: -12px;
+  border-right: 0;
+  border-left: 0;
+  border-radius: 0;
+  box-shadow: inset 0 1px rgba(255,255,255,.13), inset 0 -1px rgba(255,255,255,.09);
+}
+
+.hoard-total {
+  min-height: 142px;
+  padding: 20px 47% 18px 16px;
+  justify-content: end;
+  background-image:
+    linear-gradient(90deg, rgba(8, 63, 44, .93) 0 37%, rgba(8, 52, 46, .4) 65%, rgba(8, 33, 45, .14)),
+    url("/art/legacy-treasure-v3.png");
+  background-position: center, 68% 54%;
+  background-size: cover;
+}
+.hoard-total strong { font-size: 28px; }
+.hoard-total small { color: #d0e8d9; }
+.hoard-total .crystal-cluster { right: 17px; left: auto; top: 38px; transform: scale(1.08); }
+
+.hoard-view-accounts .cream-list,
+.hoard-view-transactions .transaction-panel {
+  position: relative;
+  border: 1px solid #d7ae64;
+  background:
+    linear-gradient(rgba(255, 246, 220, .94), rgba(245, 220, 174, .96)),
+    repeating-linear-gradient(105deg, transparent 0 12px, rgba(91, 55, 31, .025) 12px 13px);
+  box-shadow: 0 12px 30px rgba(2, 13, 25, .3), inset 0 1px #fffdf0;
+}
+.hoard-view-accounts .cream-list::before,
+.hoard-view-transactions .transaction-panel::before {
+  content: "TREASURY LEDGER";
+  display: block;
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid #d6b477;
+  color: #6c4b2c;
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: .13em;
+}
+.round-icon, .transaction-glyph { box-shadow: inset 0 1px rgba(255,255,255,.5), 0 2px 5px rgba(48,24,24,.24); }
+.hoard-view-transactions .transaction-panel > .segmented button { color: #6b594d; }
+.hoard-view-transactions .transaction-panel > .segmented button.active { color: #fff; }
+
+.hibernation-card {
+  min-height: 178px;
+  padding: 23px 48% 24px 16px;
+  align-items: end;
+  background-image:
+    linear-gradient(90deg, rgba(7, 50, 83, .95) 0 40%, rgba(7, 41, 75, .38) 67%, rgba(4, 20, 43, .03)),
+    linear-gradient(0deg, #08294c, transparent 42%),
+    url("/art/hibernation-guardian-v3.png");
+  background-position: center, center, 69% 55%;
+  background-size: cover;
+}
+.hibernation-card p { font-size: 12px; }
+.hibernation-card .sleeping-orb { position: absolute; right: 17px; bottom: 16px; }
+
+.scrying-view-spending .simple-bars,
+.scrying-view-income .simple-bars,
+.scrying-view-trends .trend-panel {
+  border-color: rgba(86, 203, 255, .48);
+  background:
+    linear-gradient(180deg, rgba(6, 34, 65, .88), rgba(5, 25, 52, .95)),
+    url("/art/hibernation-guardian-v3.png");
+  background-position: center, 78% top;
+  background-size: cover;
+  box-shadow: inset 0 1px rgba(255,255,255,.1), 0 12px 28px rgba(0,0,0,.25);
+}
+
+.tribute-alert {
+  min-height: 184px;
+  padding: 22px 53% 19px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  background-image:
+    linear-gradient(90deg, rgba(91, 19, 53, .97) 0 39%, rgba(80, 17, 50, .34) 68%, transparent),
+    linear-gradient(0deg, #351432, transparent 47%),
+    url("/art/tribute-guardian-v3.png");
+  background-position: center, center, 72% 55%;
+  background-size: cover;
+}
+.tribute-alert > div { align-items: flex-start; }
+.tribute-alert > button { width: auto; align-self: stretch; }
+
+.investment-hero {
+  min-height: 184px;
+  padding: 24px 50% 20px 16px;
+  grid-template-columns: 28px 1fr;
+  align-items: end;
+  background-image:
+    linear-gradient(90deg, rgba(10, 73, 53, .97) 0 39%, rgba(10, 56, 58, .33) 67%, transparent),
+    linear-gradient(0deg, #123c43, transparent 45%),
+    url("/art/hibernation-guardian-v3.png");
+  background-position: center, center, 70% 55%;
+  background-size: cover;
+}
+.investment-hero > svg:last-child { display: none; }
+.investment-hero > span { align-self: end; }
+.investment-hero strong { font-size: 25px; }
+.investment-summary > div,
+.investment-list button { background: rgba(9, 42, 52, .84); backdrop-filter: blur(9px); }
+
+.wizard-guide {
+  min-height: 160px;
+  padding: 25px 14px 24px 50%;
+  border-top-color: rgba(100, 172, 230, .35);
+  border-bottom-color: rgba(100, 172, 230, .35);
+  background: linear-gradient(90deg, #020817 0 42%, #0a2442 51%, rgba(18, 63, 102, .96) 66% 100%);
+}
+.flight-wizard {
+  width: 48%;
+  background-position: 29% 26%;
+  background-size: 275px auto;
+  filter: drop-shadow(0 7px 8px #041020);
+  -webkit-mask-image: linear-gradient(90deg, #000 0 74%, rgba(0,0,0,.75) 84%, transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0 74%, rgba(0,0,0,.75) 84%, transparent 100%);
+}
+.wizard-guide p { font-size: 11px; line-height: 1.55; }
+
+.wish-frame {
+  min-height: 286px;
+  padding: 0;
+  overflow: hidden;
+  background: #5b1f58;
+}
+.wish-product-art { height: 286px; border-radius: 0; background-position: center 48%; box-shadow: inset 0 -90px 58px rgba(57, 17, 62, .82); }
+.wish-frame > div:last-child {
+  position: absolute;
+  right: 15px;
+  bottom: 15px;
+  left: 15px;
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid rgba(255, 222, 151, .34);
+  border-radius: 10px;
+  background: rgba(53, 21, 66, .66);
+  backdrop-filter: blur(10px);
+}
+.rest-panel { border-right: 0; border-left: 0; border-radius: 0; background: rgba(48, 22, 69, .68); backdrop-filter: blur(8px); }
+.wish-impact { min-height: 77px; padding: 12px 14px; border-right: 0; border-left: 0; border-radius: 0; background: rgba(92, 31, 75, .68); backdrop-filter: blur(8px); }
+.wish-dragon { display: none; }
+
+.dragon-status-art { height: 430px; box-shadow: inset 0 -130px 75px rgba(8, 28, 50, .9); }
+.state-panel { margin: -66px -2px 0; background: rgba(11, 48, 85, .8); backdrop-filter: blur(12px); }
+
+.debt-total {
+  width: calc(100% + 24px);
+  min-height: 168px;
+  margin-right: -12px;
+  margin-left: -12px;
+  padding: 30px 51% 25px 16px;
+  align-items: flex-start;
+  border-right: 0;
+  border-left: 0;
+  border-radius: 0;
+  text-align: left;
+  background-image:
+    linear-gradient(90deg, rgba(59, 41, 27, .97) 0 39%, rgba(47, 34, 31, .35) 66%, transparent),
+    linear-gradient(0deg, #30271f, transparent 46%),
+    url("/art/debt-victory-v3.png");
+  background-position: center, center, 72% 54%;
+  background-size: cover;
+}
+.debt-total .chain-line { width: 118px; }
+.debt-total .chain-line span { display: none; }
+.debt-total > strong { font-size: 29px; }
+
+.victory-panel {
+  min-height: 180px;
+  padding: 24px 49% 20px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  background-image:
+    linear-gradient(90deg, rgba(61, 47, 31, .97) 0 40%, rgba(38, 31, 35, .32) 69%, transparent),
+    linear-gradient(0deg, #29231f, transparent 48%),
+    url("/art/debt-victory-v3.png");
+  background-position: center, center, 71% 58%;
+  background-size: cover;
+}
+
+.legacy-hero {
+  min-height: 204px;
+  padding: 28px 48% 24px 16px;
+  grid-template-columns: 62px 1fr;
+  align-items: end;
+  background-image:
+    linear-gradient(90deg, rgba(47, 29, 90, .97) 0 38%, rgba(44, 28, 81, .3) 67%, transparent),
+    linear-gradient(0deg, #2a194d, transparent 45%),
+    url("/art/legacy-treasure-v3.png");
+  background-position: center, center, 69% 56%;
+  background-size: cover;
+}
+.legacy-chest { display: none; }
+.legacy-hero > div:nth-child(2) { align-self: end; }
+.relic-panel, .milestones { background: rgba(31, 21, 62, .83); backdrop-filter: blur(10px); }
+
+.keeper-desk {
+  min-height: 178px;
+  padding: 27px 49% 24px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  background-image:
+    linear-gradient(90deg, rgba(63, 30, 53, .97) 0 39%, rgba(62, 27, 54, .32) 67%, transparent),
+    linear-gradient(0deg, #2d223c, transparent 45%),
+    url("/art/tribute-guardian-v3.png");
+  background-position: center, center, 72% 55%;
+  background-size: cover;
+}
+.keeper-desk span { color: #ffcbdc; font-size: 9px; font-weight: 950; letter-spacing: .11em; text-transform: uppercase; }
+.keeper-desk strong { margin: 3px 0; color: #fff0a8; font-size: 19px; line-height: 1.1; }
+.keeper-desk small { color: #e1c9d7; font-size: 9px; line-height: 1.35; }
+.settings-card, .preference-grid, .notification-settings, .budget-settings, .data-panel {
+  border-color: rgba(255, 207, 119, .28);
+  background: rgba(20, 25, 49, .84);
+  box-shadow: inset 0 1px rgba(255,255,255,.08), 0 12px 25px rgba(0,0,0,.18);
+  backdrop-filter: blur(11px);
+}
+.settings-card div > span svg { color: #ffcf72; }
+
+@media (max-height: 720px) {
+  .dragon-hero { height: 205px; }
+  .dragon-status-art { height: 340px; }
+  .wish-frame, .wish-product-art { min-height: 0; height: 220px; }
+  .hoard-total { min-height: 112px; }
+  .hibernation-card, .tribute-alert, .investment-hero, .victory-panel, .keeper-desk { min-height: 145px; }
+  .legacy-hero { min-height: 168px; }
+}
+
+@media (max-height: 600px) {
+  .dragon-hero { width: calc(100% + 18px); height: 151px; margin-right: -9px; margin-left: -9px; }
+  .hoard-total, .hibernation-card, .tribute-alert, .investment-hero, .wizard-guide, .wish-frame, .victory-panel, .legacy-hero, .keeper-desk, .debt-total { width: calc(100% + 18px); margin-right: -9px; margin-left: -9px; }
+  .hoard-total { min-height: 75px; padding: 8px 45% 8px 10px; }
+  .hibernation-card { min-height: 78px; padding: 9px 47% 8px 10px; }
+  .tribute-alert { min-height: 90px; padding: 9px 46% 7px 10px; }
+  .investment-hero, .keeper-desk { min-height: 95px; padding: 11px 46% 10px 10px; }
+  .wizard-guide { min-height: 102px; padding-left: 46%; }
+  .wish-frame, .wish-product-art { min-height: 0; height: 160px; }
+  .wish-frame > div:last-child { right: 9px; bottom: 8px; left: 9px; padding: 6px 8px; }
+  .debt-total { min-height: 102px; padding: 12px 48% 10px 10px; }
+  .victory-panel { min-height: 112px; padding: 11px 46% 9px 10px; }
+  .legacy-hero { min-height: 115px; padding: 13px 45% 11px 10px; }
+}
