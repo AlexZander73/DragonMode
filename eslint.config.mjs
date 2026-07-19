@@ -9,6 +9,11 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    ".vinext/**",
+    "dist/**",
+    "mobile-dist/**",
+    "android/app/src/main/assets/public/**",
+    "ios/App/App/public/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

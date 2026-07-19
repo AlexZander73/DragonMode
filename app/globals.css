@@ -126,7 +126,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, label:focus-wit
 
 .dragon-hero {
   width: 100%; height: 202px; margin-top: 9px; position: relative; overflow: hidden; border: 0; border-radius: 13px; cursor: pointer;
-  background-color: #1b9ac0; background-image: url("/reference/01_lair_home.png"); background-repeat: no-repeat; background-size: 100% auto; background-position: center 29%;
+  background-color: #1b9ac0; background-image: url("/art/lair-guardian-v2.png"); background-repeat: no-repeat; background-size: cover; background-position: center 54%;
   box-shadow: inset 0 0 0 2px rgba(255,220,89,.54), inset 0 -46px 45px rgba(5,16,33,.42), 0 8px 18px rgba(0,0,0,.25);
 }
 .dragon-hero::before, .wish-frame::before, .dragon-status-art::before { content: ""; position: absolute; inset: 5px; border: 1px solid rgba(255,245,181,.32); border-radius: 9px; pointer-events: none; }
@@ -221,13 +221,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, label:focus-wit
 .range-note { margin-top: 8px; padding: 10px; display: flex; gap: 9px; border: 1px solid #376d99; border-radius: 10px; background: #193f66; }.range-note svg { flex: none; color: #ffd058; }.range-note p { margin: 0; font-size: 10px; line-height: 1.45; }.range-note strong { color: #ffdb54; }
 .scenario-editor, .strategy-panel { margin-top: 9px; padding: 8px 10px 11px; border: 1px solid rgba(69,148,203,.4); border-radius: 11px; background: rgba(9,37,67,.84); }.scenario-editor label, .strategy-panel label { display: grid; grid-template-columns: 1fr auto; gap: 8px; color: #cbd9e7; font-size: 10px; }.scenario-editor input[type="range"], .strategy-panel input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--theme); }.cause-card { margin-top: 8px; padding: 9px; display: flex; gap: 8px; align-items: center; border-radius: 9px; background: #112f52; }.cause-card p { margin: 0; font-size: 9px; }.cause-card svg { color: #ffcc51; flex: none; }
 
-.wish-frame { min-height: 204px; position: relative; padding: 12px; border: 2px solid #ff90d2; border-radius: 13px; background: linear-gradient(140deg, #b93286, #54215d); box-shadow: inset 0 0 30px rgba(255,220,95,.15), 0 8px 19px rgba(0,0,0,.3); }.wish-product-art { height: 145px; border-radius: 9px; background-image: url("/reference/07_dragons_rest_wish_vault.png"); background-size: 100% auto; background-position: center 18%; box-shadow: inset 0 -20px 20px rgba(54,14,57,.35); }.wish-frame > div:last-child { margin-top: 8px; display: flex; justify-content: space-between; align-items: center; }.wish-frame strong { font-size: 14px; }.wish-frame b { color: #fff5a5; font-size: 16px; }
+.wish-frame { min-height: 204px; position: relative; padding: 12px; border: 2px solid #ff90d2; border-radius: 13px; background: linear-gradient(140deg, #b93286, #54215d); box-shadow: inset 0 0 30px rgba(255,220,95,.15), 0 8px 19px rgba(0,0,0,.3); }.wish-product-art { height: 145px; border-radius: 9px; background-image: url("/art/wish-vault-v2.png"); background-size: cover; background-position: center 34%; box-shadow: inset 0 -20px 20px rgba(54,14,57,.35); }.wish-frame > div:last-child { margin-top: 8px; display: flex; justify-content: space-between; align-items: center; }.wish-frame strong { font-size: 14px; }.wish-frame b { color: #fff5a5; font-size: 16px; }
 .rest-panel { margin-top: 8px; padding: 8px; border: 1px solid rgba(255,139,215,.4); border-radius: 10px; text-align: center; background: rgba(53,25,74,.83); }.rest-panel > span { color: #efc3e3; font-size: 10px; }.rest-panel > strong { display: flex; align-items: center; justify-content: center; gap: 5px; color: #ffe66e; font-size: 10px; }
-.wish-impact { margin-top: 8px; min-height: 93px; padding: 9px 10px 9px 104px; position: relative; display: flex; align-items: center; border: 1px solid #b54a89; border-radius: 10px; background: linear-gradient(110deg, #722653, #3b264f); overflow: hidden; }.wish-impact p { margin: 0; font-size: 10px; line-height: 1.45; }.wish-impact strong { color: #ffd269; }.wish-dragon { position: absolute; left: 0; top: 0; width: 95px; height: 100%; background-image: url("/reference/07_dragons_rest_wish_vault.png"); background-size: 323% auto; background-position: 0 62%; }
+.wish-impact { margin-top: 8px; min-height: 93px; padding: 9px 10px 9px 112px; position: relative; display: flex; align-items: center; border: 1px solid #b54a89; border-radius: 10px; background: linear-gradient(110deg, #722653, #3b264f); overflow: hidden; }.wish-impact p { margin: 0; font-size: 10px; line-height: 1.45; }.wish-impact strong { color: #ffd269; }.wish-dragon { position: absolute; left: 0; top: 0; width: 104px; height: 100%; background-image: url("/art/wish-vault-v2.png"); background-size: 310% auto; background-position: 1% 94%; }
 .impact-grid { margin-top: 7px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }.impact-grid div { padding: 8px; border: 1px solid rgba(255,255,255,.13); border-radius: 8px; display: flex; flex-direction: column; background: #25203e; }.impact-grid span { color: #bdb1c9; font-size: 8px; }.impact-grid strong { margin-top: 2px; color: #ffe18d; font-size: 11px; }.supportive-copy { padding: 8px 2px; color: #c7c2d0; font-size: 9px; line-height: 1.45; text-align: center; }
 .wish-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }.wish-actions button { min-height: 43px; border: 1px solid rgba(255,255,255,.3); border-radius: 9px; color: white; text-transform: uppercase; font-size: 9px; font-weight: 900; cursor: pointer; }.wish-actions .claim { background: #3b9d2d; }.wish-actions .rest { background: #b1801f; }.wish-actions .save { background: #2976aa; }.wish-actions .release { background: #9d372f; }
 
-.dragon-status-art { height: 352px; margin: 0 -12px; position: relative; background-image: url("/reference/08_dragon_status.png"); background-size: 100% auto; background-position: center 15%; box-shadow: inset 0 -70px 55px rgba(8,28,50,.65); }.dragon-status-art > span { position: absolute; left: 16px; bottom: 13px; padding: 5px 9px; border-radius: 99px; background: rgba(5,21,40,.72); font-size: 10px; }
+.dragon-status-art { height: 392px; margin: 0 -12px; position: relative; background-image: url("/art/dragon-guardian-v2.png"); background-size: cover; background-position: center 36%; box-shadow: inset 0 -90px 60px rgba(8,28,50,.72); }.dragon-status-art > span { position: absolute; left: 16px; bottom: 13px; padding: 5px 9px; border-radius: 99px; background: rgba(5,21,40,.72); font-size: 10px; }
 .state-panel { margin-top: -8px; position: relative; z-index: 1; min-height: 96px; padding: 11px; border: 1px solid #4b9bd0; border-radius: 11px; display: flex; align-items: center; gap: 10px; text-align: center; background: linear-gradient(180deg, #174f7c, #0d3156); }.state-panel > svg { flex: none; color: #99fb74; }.state-panel span { display: flex; flex: 1; flex-direction: column; color: #b9d5e7; font-size: 9px; text-transform: uppercase; }.state-panel strong { margin: 3px 0; color: white; font-size: 21px; }.state-panel small { color: #eef4f8; font-size: 10px; text-transform: none; }
 .reason-panel { margin-top: 8px; padding: 9px 11px; border: 1px solid #276d99; border-radius: 10px; background: #0b3a60; }.reason-panel h2 { margin: 0; color: #ffdd6c; font-size: 10px; text-transform: uppercase; }.reason-panel ul { margin: 7px 0; padding-left: 18px; font-size: 10px; line-height: 1.55; }.reason-panel li::marker { color: #ffd34d; }.reason-panel button { width: 100%; min-height: 38px; border: 0; border-top: 1px solid rgba(255,255,255,.13); display: flex; align-items: center; justify-content: space-between; background: transparent; color: #9fddff; font-size: 9px; cursor: pointer; }
 .screen-dragon blockquote { margin: 8px 0; padding: 11px; border-left: 3px solid #ffe071; border-radius: 0 9px 9px 0; background: rgba(9,38,65,.74); color: #d9ecf6; font-size: 10px; line-height: 1.45; font-style: italic; }
@@ -253,7 +253,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, label:focus-wit
 .formula-card { margin-top: 10px; padding: 12px; border: 1px solid #c9a96f; border-radius: 10px; background: #fff9e8; }.formula-card > strong { display: block; margin-bottom: 5px; color: #245a58; font-size: 16px; }.formula-card > svg { color: #3e75ae; }.modal-list { margin-top: 10px; overflow: hidden; border: 1px solid #d1b993; border-radius: 9px; }.modal-list button { width: 100%; min-height: 45px; padding: 8px; border: 0; border-bottom: 1px solid #decaa8; display: flex; justify-content: space-between; background: #fffaf0; color: #2e2523; font-size: 10px; }.modal-list button:last-child { border: 0; }.mini-history { padding: 8px; border-radius: 8px; background: #fff8e6; }.mini-history h3 { margin: 0 0 5px; font-size: 10px; }.mini-history p { padding: 5px 0; display: flex; justify-content: space-between; border-top: 1px solid #e0cbae; }.warning-copy { padding: 8px; border-left: 3px solid #d23b45; background: #fde3d2; color: #772d2f; }.reorganise-list { margin-top: 10px; border: 1px solid #d6bd97; border-radius: 9px; overflow: hidden; }.reorganise-list > div { min-height: 49px; padding: 7px; display: grid; grid-template-columns: 20px 1fr 34px; align-items: center; gap: 8px; border-bottom: 1px solid #ddc6a3; }.reorganise-list div > span { display: flex; flex-direction: column; }.reorganise-list strong { font-size: 10px; }.reorganise-list small { color: #75675d; font-size: 8px; }.reorganise-list button { height: 34px; border: 1px solid #c5aa7f; border-radius: 7px; background: #fff9ea; color: #3f315c; }.confirm-panel { text-align: center; }.confirm-panel p { font-size: 11px; line-height: 1.5; }
 
 .tutorial-backdrop { position: absolute; inset: 0; z-index: 70; display: grid; place-items: center; padding: 18px; background: rgba(3,8,22,.83); backdrop-filter: blur(6px); }
-.tutorial-card { width: 100%; padding: 12px; position: relative; border: 1px solid #a46ddb; border-radius: 17px; text-align: center; background: linear-gradient(180deg, #30215c, #141b35); box-shadow: 0 18px 60px #000, inset 0 1px 0 rgba(255,255,255,.18); }.tutorial-card .skip { position: absolute; right: 11px; top: 10px; border: 0; background: transparent; color: #c4b9d1; font-size: 9px; text-decoration: underline; cursor: pointer; }.tutorial-art { height: 189px; margin-bottom: 11px; border-radius: 12px; display: grid; place-items: center; position: relative; background-image: url("/reference/01_lair_home.png"); background-size: 100% auto; background-position: center 13%; box-shadow: inset 0 -40px 35px #2c1f58; color: #fff0a2; }.tutorial-art > svg:first-child { position: absolute; right: 19px; bottom: 15px; filter: drop-shadow(0 4px 6px #000); }.tutorial-art > svg:last-child { position: absolute; left: 17px; top: 17px; color: #e59dff; }.tutorial-1 { background-image: url("/reference/02_hoard_treasury_chambers.png"); background-position: center 3%; }.tutorial-2 { background-image: url("/reference/03_quest_board.png"); background-position: center 5%; }.tutorial-3 { background-image: url("/reference/10_dragons_legacy_progression.png"); background-position: center 7%; }
+.tutorial-card { width: 100%; padding: 12px; position: relative; border: 1px solid #a46ddb; border-radius: 17px; text-align: center; background: linear-gradient(180deg, #30215c, #141b35); box-shadow: 0 18px 60px #000, inset 0 1px 0 rgba(255,255,255,.18); }.tutorial-card .skip { position: absolute; right: 11px; top: 10px; border: 0; background: transparent; color: #c4b9d1; font-size: 9px; text-decoration: underline; cursor: pointer; }.tutorial-art { height: 189px; margin-bottom: 11px; border-radius: 12px; display: grid; place-items: center; position: relative; background-image: linear-gradient(0deg, rgba(34,25,73,.82), transparent 65%), url("/art/lair-guardian-v2.png"); background-size: cover; background-position: center 55%; box-shadow: inset 0 -40px 35px #2c1f58; color: #fff0a2; }.tutorial-art > svg:first-child { position: absolute; right: 19px; bottom: 15px; filter: drop-shadow(0 4px 6px #000); }.tutorial-art > svg:last-child { position: absolute; left: 17px; top: 17px; color: #e59dff; }.tutorial-1 { background-image: linear-gradient(0deg, rgba(22,45,70,.82), transparent 70%), url("/art/lair-guardian-v2.png"); background-position: center 48%; }.tutorial-2 { background-image: linear-gradient(0deg, rgba(66,20,88,.84), transparent 70%), url("/art/wish-vault-v2.png"); background-position: center 44%; }.tutorial-3 { background-image: linear-gradient(0deg, rgba(50,23,91,.84), transparent 70%), url("/art/dragon-guardian-v2.png"); background-position: center 36%; }
 .tutorial-card > span { color: #d4a2ff; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }.tutorial-card h2 { margin: 5px 0; color: #fff0b4; font-size: 22px; }.tutorial-card p { margin: 0 auto; max-width: 330px; color: #d1ccdf; font-size: 11px; line-height: 1.55; }.story-dots { margin: 13px 0; display: flex; justify-content: center; gap: 5px; }.story-dots i { width: 7px; height: 7px; border-radius: 50%; background: #66587d; }.story-dots i.active { width: 19px; border-radius: 99px; background: #dd64de; }
 .toast { position: absolute; left: 50%; bottom: calc(83px + var(--safe-bottom)); z-index: 80; max-width: calc(100% - 24px); padding: 10px 13px; transform: translateX(-50%); border: 1px solid #ffe071; border-radius: 999px; display: flex; align-items: center; gap: 6px; white-space: nowrap; background: #161a36; color: #fff5b2; font-size: 10px; font-weight: 850; box-shadow: 0 8px 25px #000; animation: toast-in .25s ease both; }
 
@@ -277,3 +277,106 @@ button:focus-visible, input:focus-visible, select:focus-visible, label:focus-wit
 }
 
 .tutorial-card .skip { z-index: 3; padding: 5px 7px; border-radius: 999px; background: rgba(15,20,48,.76); color: #f1e8f7; }
+
+/* Functional polish: compact controls keep dense finance tools game-like and thumb friendly. */
+.transaction-search { margin: 0 7px 6px; min-height: 42px; padding: 0 10px; display: flex; align-items: center; gap: 7px; border: 1px solid #c8aa7c; border-radius: 9px; background: #fffaf0; color: #493c42; }
+.transaction-search input { width: 100%; min-height: 40px; border: 0; outline: 0; background: transparent; color: #2c2329; font-size: 12px; }
+.transaction-filters { margin: 0 7px 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.transaction-filters select { min-width: 0; min-height: 38px; padding: 5px 7px; border: 1px solid #c8aa7c; border-radius: 8px; background: #fffaf0; color: #3d3137; font-size: 9px; }
+.transaction-panel > .segmented { margin: 0 7px 7px; background: #e4c89e; }
+.transaction-panel > .primary-button { margin: 0 7px 7px; width: calc(100% - 14px); }
+
+.quest-card { grid-template-columns: 52px minmax(0, 1fr) 55px; }
+.quest-actions { display: flex; flex-direction: column; gap: 6px; }
+.quest-actions button { min-height: 32px; border: 1px solid #5d2598; border-radius: 999px; background: linear-gradient(180deg, #a84ee5, #6222aa); color: white; font-size: 10px; font-weight: 950; box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 3px 0 #42176f; }
+.quest-actions button:last-child { min-height: 28px; background: #e8cca0; border-color: #b99163; color: #5a4057; box-shadow: none; }
+.quest-quiet-actions { grid-column: 2 / -1; display: flex; justify-content: flex-end; gap: 5px; }
+.quest-quiet-actions button { min-height: 26px; padding: 4px 8px; border: 1px solid #c3a47a; border-radius: 999px; background: rgba(255,255,255,.5); color: #604957; font-size: 8px; font-weight: 800; }
+
+.range-tabs { margin: -2px 0 7px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.range-tabs button { min-height: 31px; border: 1px solid rgba(128,196,255,.28); border-radius: 8px; background: #102a50; color: #a7bed8; font-size: 9px; font-weight: 800; }
+.range-tabs button.active { background: linear-gradient(180deg, #218ce3, #0b4e91); color: white; box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 0 12px rgba(37,156,255,.35); }
+.scenario-editor label + label { margin-top: 8px; }
+.victory-panel .secondary-button { margin-top: 9px; }
+
+.edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.edit-grid label { min-width: 0; }
+.detail-stack textarea, .subscription-detail textarea, .form-stack textarea { width: 100%; min-height: 72px; resize: vertical; padding: 9px 10px; border: 1px solid #c2a57e; border-radius: 8px; background: #fffdf6; color: #2d2424; font: inherit; font-size: 12px; text-transform: none; }
+.subscription-detail > label, .form-stack > label { display: flex; flex-direction: column; gap: 4px; color: #5c4c43; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.subscription-detail .edit-grid label { display: flex; flex-direction: column; gap: 4px; color: #5c4c43; font-size: 8px; font-weight: 800; text-transform: uppercase; }
+.subscription-detail .edit-grid input, .subscription-detail .edit-grid select { width: 100%; min-height: 42px; padding: 7px 8px; border: 1px solid #c2a57e; border-radius: 8px; background: #fffdf6; color: #2d2424; font-size: 11px; text-transform: none; }
+.check-label { min-height: 44px; padding: 8px 9px; flex-direction: row !important; align-items: center; justify-content: flex-start; border: 1px solid #c2a57e; border-radius: 8px; background: #fffdf6; text-transform: none !important; }
+.check-label input { width: 18px !important; min-height: 18px !important; margin: 0 5px 0 0; accent-color: #8d3ec6; }
+.price-history { padding: 8px 9px; border: 1px solid #d5b98e; border-radius: 9px; background: #fff8e8; }
+.price-history h3 { margin: 0 0 4px; font-size: 10px; text-transform: uppercase; }
+.price-history p { margin: 0; padding: 5px 0; display: flex; justify-content: space-between; border-top: 1px solid #ead7b8; font-size: 10px; }
+.price-history p:first-of-type { border-top: 0; }
+.worth-list { padding-top: 10px; display: flex; flex-direction: column; gap: 9px; }
+.worth-list > section { padding: 9px; border: 1px solid #d0b185; border-radius: 10px; background: #fff8e8; }
+.worth-list > section > div:first-child { display: flex; flex-direction: column; }
+.worth-list strong { font-size: 12px; }.worth-list small { color: #76675e; font-size: 9px; }
+.worth-list > section > div:last-child { margin-top: 7px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.worth-list button { min-height: 34px; padding: 5px; border: 1px solid #b7976e; border-radius: 8px; background: #f1d9b0; color: #443544; font-size: 8px; font-weight: 800; }
+.budget-settings { margin-top: 9px; padding: 9px 10px; border: 1px solid rgba(255,255,255,.15); border-radius: 11px; background: rgba(17,31,57,.8); }
+.budget-settings label { margin-top: 8px; display: grid; grid-template-columns: 1fr auto; gap: 6px; color: #d7dae4; font-size: 9px; }
+.budget-settings input { grid-column: 1 / -1; width: 100%; accent-color: var(--theme); }
+.full.danger-button { width: 100%; }
+.modal-sheet > header { position: sticky; top: -7px; z-index: 2; background: rgba(255,247,223,.96); backdrop-filter: blur(10px); }
+
+@media (max-width: 350px) {
+  .edit-grid { grid-template-columns: 1fr; }
+  .header-copy h1 { font-size: 17px; }
+  .screen { padding-inline: 9px; }
+}
+
+@media (max-height: 600px) {
+  .screen-scroll { bottom: calc(56px + var(--safe-bottom)); }
+  .bottom-nav { height: calc(56px + var(--safe-bottom)); padding-top: 3px; }
+  .bottom-nav button { padding: 2px; gap: 1px; font-size: 7px; }
+  .nav-icon { width: 26px; height: 25px; }
+  .bottom-nav svg { width: 17px; height: 17px; }
+  .screen-header { min-height: 49px; margin-bottom: 6px; padding-block: calc(5px + env(safe-area-inset-top, 0px)) 5px; grid-template-columns: 32px 1fr auto; }
+  .header-icon, .icon-button { width: 32px; height: 32px; border-radius: 8px; }
+  .header-copy h1 { font-size: 17px; }.header-copy p { margin-top: 2px; font-size: 8px; }
+  .level-badge, .xp-chip { padding: 5px 7px; font-size: 9px; }
+  .safety-banner { min-height: 44px; padding: 5px 8px; grid-template-columns: 24px 1fr 21px; }
+  .safety-banner strong { font-size: 11px; }.safety-banner small { font-size: 8px; }
+  .dragon-hero { height: 150px; margin-top: 6px; }
+  .total-panel { margin-top: 6px; padding: 6px 9px; }
+  .total-panel > strong { font-size: 23px; }.total-panel button { display: none; }
+  .metric-grid { margin-top: 5px; }.metric-card { min-height: 66px; padding-block: 4px; }.metric-card svg { width: 18px; height: 18px; }
+  .free-gold-card, .screen-lair .lore-card { display: none; }
+  .section-title { min-height: 25px; }.section-title h2 { font-size: 9px; }
+  .event-list > button { min-height: 38px; padding-block: 4px; }
+  .hoard-total { min-height: 68px; padding: 7px 8px 6px 77px; }
+  .hoard-total strong { font-size: 22px; }.hoard-total small { margin-top: 2px; font-size: 7px; }
+  .crystal-cluster { transform: scale(.72); transform-origin: left center; left: 5px; }
+  .segmented, .segmented.compact { margin: 4px 0; padding: 2px; }
+  .segmented button, .segmented.compact button { min-height: 28px; padding: 3px; font-size: 7px; }
+  .chamber-list { gap: 3px; }
+  .chamber-card { min-height: 39px; padding: 3px 5px; grid-template-columns: 28px 1fr auto 12px; gap: 5px; border-radius: 8px; }
+  .chamber-icon { width: 27px; height: 27px; border-radius: 7px; }.chamber-icon svg { width: 17px; height: 17px; }
+  .chamber-copy strong { font-size: 10px; }.chamber-copy small { font-size: 7px; }.chamber-copy i { display: none; }
+  .chamber-value strong { font-size: 9px; }.chamber-value small { display: none; }
+  .wish-portal { min-height: 40px; padding: 4px 7px; grid-template-columns: 30px 1fr 16px; }
+  .wish-portal > span { width: 29px; height: 29px; }.wish-portal > span svg { width: 17px; height: 17px; }
+  .wish-portal strong { font-size: 10px; }.wish-portal small { font-size: 7px; }
+  .quest-list { gap: 4px; }.quest-card { min-height: 70px; padding: 5px; grid-template-columns: 39px 1fr 45px; gap: 5px; }
+  .quest-illustration { width: 37px; height: 42px; }.quest-illustration svg { width: 23px; height: 23px; }
+  .quest-copy strong { font-size: 10px; }.quest-copy p { margin: 2px 0; font-size: 7px; }.quest-copy small { font-size: 7px; }
+  .quest-actions { gap: 3px; }.quest-actions button { min-height: 27px; font-size: 8px; }.quest-actions button:last-child { min-height: 23px; }
+  .quest-quiet-actions { display: none; }
+  .tribute-total { min-height: 62px; padding: 6px 9px; }.tribute-total strong { font-size: 21px; }.tribute-total small { font-size: 7px; }
+  .claimant-card { min-height: 42px; padding: 3px 5px; grid-template-columns: 29px 1fr auto 12px; gap: 5px; }
+  .claimant-logo { width: 27px; height: 27px; border-radius: 7px; font-size: 12px; }.claimant-card strong { font-size: 9px; }.claimant-card small, .claimant-card em, .claimant-arrival { font-size: 7px; }
+  .tribute-alert { margin-top: 5px; padding: 6px; }.tribute-alert > button { min-height: 28px; margin-top: 4px; }.quick-log { display: none; }
+  .analytics-summary { margin: 4px 0; }.analytics-summary div { padding: 4px 2px; }.analytics-summary strong { margin-top: 1px; font-size: 9px; }
+  .chart-panel { padding: 0 7px 6px; }.donut-wrap { grid-template-columns: 112px 1fr; gap: 6px; }.donut { width: 106px; height: 106px; }.donut::after { inset: 28px; }.donut b { font-size: 13px; }.chart-legend li { min-height: 17px; font-size: 7px; }
+  .insight-card { margin-top: 5px; padding: 6px; }.insight-card button { min-height: 28px; padding: 3px 1px; font-size: 7px; }
+  .hibernation-card { min-height: 70px; margin-top: 5px; padding: 7px; grid-template-columns: 1fr 56px; }.hibernation-card p { margin: 2px 0; font-size: 8px; }.sleeping-orb { width: 50px; height: 50px; }
+  .screen-scrying > .primary-button { min-height: 35px; margin-top: 5px; }
+  .flight-chart { height: 225px; }.scenario-editor, .screen-flight > .primary-button { display: none; }
+  .debt-total { min-height: 94px; }.debt-list > button { min-height: 53px; padding: 5px; }.strategy-panel { display: none; }.victory-panel { margin-top: 6px; min-height: 102px; }
+  .dragon-status-art { height: 255px; }
+  .wish-product-art { height: 118px; }.wish-frame { min-height: 170px; }
+}

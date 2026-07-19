@@ -8,14 +8,14 @@ Dragon Mode is a visual-first fantasy finance mobile MVP. It turns accounts, spe
 
 - Ten navigable reference areas across one consistent five-tab mobile bar.
 - Seeded demo hoard with chambers, accounts, transactions, claimants, debts, quests, a resting wish, progression, and relics.
-- Manual transaction, account, subscription, and wish entry.
+- Full add/edit/delete flows for transactions, accounts, subscriptions, debts, and wishes.
 - IndexedDB persistence with JSON import/export and demo reset.
 - Subscription usage logging and cost-per-logged-use calculations.
 - Quest completion with permanent XP progression.
 - Analytics, hibernation estimate, and editable projection scenarios.
 - Debt strategy comparison and next-victory milestones.
-- Skippable story tutorial, reduced motion, sound preference, and plain-language setting.
-- Static Capacitor bundles and native iOS/Android projects.
+- Skippable story tutorial plus reduced-motion, sound, haptics, reminders, and plain-language settings.
+- Branded install icons, launch screens, PWA metadata, and synced native iOS/Android projects.
 - Cloudflare-compatible Sites build for private hosted previews.
 
 ## Navigation

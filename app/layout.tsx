@@ -1,10 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Dragon Mode — Protect your hoard",
   description: "A visual-first fantasy finance app that helps you understand, protect, and grow your hoard.",
   applicationName: "Dragon Mode",
+  manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Dragon Mode" },
   openGraph: {
     title: "Dragon Mode",
@@ -13,9 +14,15 @@ export const metadata: Metadata = {
   },
   twitter: { card: "summary_large_image", title: "Dragon Mode", description: "Protect your hoard. Rest easier.", images: ["/og.png"] },
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: "/art/app-icon-v2.png",
+    shortcut: "/art/app-icon-v2.png",
+    apple: "/art/app-icon-v2.png",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#08182f",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({

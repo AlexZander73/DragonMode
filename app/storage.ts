@@ -1,7 +1,7 @@
-import type { DragonState } from "./data";
+import { normalizeState, type DragonState } from "./data";
 
 const DB_NAME = "dragon-mode-vault";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = "app-state";
 const STATE_KEY = "primary";
 
@@ -21,7 +21,13 @@ export async function loadState(): Promise<DragonState | null> {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE, "readonly");
     const request = transaction.objectStore(STORE).get(STATE_KEY);
-    request.onsuccess = () => resolve((request.result as DragonState) ?? null);
+    request.onsuccess = () => {
+      try {
+        resolve(request.result ? normalizeState(request.result) : null);
+      } catch {
+        resolve(null);
+      }
+    };
     request.onerror = () => reject(request.error);
     transaction.oncomplete = () => db.close();
   });
@@ -52,4 +58,3 @@ export async function clearState(): Promise<void> {
     transaction.onerror = () => reject(transaction.error);
   });
 }
-
