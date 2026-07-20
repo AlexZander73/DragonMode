@@ -52,7 +52,8 @@ export async function playFeedback(options: { sound: boolean; haptics: boolean; 
 export type NotificationAction =
   | { type: "subscription-use"; subscriptionId: string }
   | { type: "subscription-open"; subscriptionId: string }
-  | { type: "wish-open"; wishId: string };
+  | { type: "wish-open"; wishId: string }
+  | { type: "open-screen"; screen: "lair" | "import" | "journey" | "analytics" | "tribute" | "hoard" };
 
 export async function setupNotificationActions(onAction: (action: NotificationAction) => void) {
   if (!Capacitor.isNativePlatform()) return () => undefined;
@@ -70,6 +71,10 @@ export async function setupNotificationActions(onAction: (action: NotificationAc
         id: "wish-ready",
         actions: [{ id: "open-wish", title: "Decide calmly", foreground: true }],
       },
+      {
+        id: "open-useful-action",
+        actions: [{ id: "open-action", title: "Review", foreground: true }],
+      },
     ],
   });
   const listener = await LocalNotifications.addListener("localNotificationActionPerformed", (event) => {
@@ -77,6 +82,7 @@ export async function setupNotificationActions(onAction: (action: NotificationAc
     if (event.actionId === "used-today" && extra.subscriptionId) onAction({ type: "subscription-use", subscriptionId: String(extra.subscriptionId) });
     else if (extra.subscriptionId) onAction({ type: "subscription-open", subscriptionId: String(extra.subscriptionId) });
     else if (extra.wishId) onAction({ type: "wish-open", wishId: String(extra.wishId) });
+    else if (["lair", "import", "journey", "analytics", "tribute", "hoard"].includes(String(extra.targetScreen))) onAction({ type: "open-screen", screen: String(extra.targetScreen) as Extract<NotificationAction, { type: "open-screen" }>["screen"] });
   });
   return () => listener.remove();
 }
@@ -99,7 +105,7 @@ export async function scheduleClaimantReminder(input: { id: string; name: string
     notifications: [{
       id,
       title: "A claimant returns soon",
-      body: `${input.name} is expected to claim ${input.currency ?? "$"}${input.amount.toFixed(2)}. Review the tribute?`,
+      body: "A recurring cost you asked DragonMode to watch is approaching. Open its details when useful.",
       schedule: { at: input.at },
       actionTypeId: "claimant-review",
       extra: { subscriptionId: input.id },
@@ -120,7 +126,7 @@ export async function scheduleWishReminder(input: { id: string; name: string; at
     notifications: [{
       id,
       title: "Your resting wish is ready",
-      body: `${input.name} has finished resting. Keep it, wait longer, or let it go—nothing here is a test.`,
+      body: "A resting wish is ready. Keep it, wait longer, or let it go—nothing here is a test.",
       schedule: { at: input.at },
       actionTypeId: "wish-ready",
       extra: { wishId: input.id },
@@ -135,6 +141,34 @@ async function cancelNotification(key: string) {
   const { LocalNotifications } = await import("@capacitor/local-notifications");
   await LocalNotifications.cancel({ notifications: [{ id: stableNotificationId(key) }] });
 }
+
+function outsideQuietHours(input: Date, state: DragonState) {
+  const date = new Date(input);
+  const minutes = date.getHours() * 60 + date.getMinutes();
+  const parse = (value: string) => {
+    const [hour, minute] = value.split(":").map(Number);
+    return Math.max(0, Math.min(1439, (hour || 0) * 60 + (minute || 0)));
+  };
+  const start = parse(state.profile.notificationQuietStart);
+  const end = parse(state.profile.notificationQuietEnd);
+  const quiet = start < end ? minutes >= start && minutes < end : minutes >= start || minutes < end;
+  if (!quiet) return date;
+  const endHour = Math.floor(end / 60);
+  const endMinute = end % 60;
+  if (start >= end && minutes >= start) date.setDate(date.getDate() + 1);
+  date.setHours(endHour, endMinute, 0, 0);
+  return date;
+}
+
+async function scheduleActionReminder(input: { key: string; title: string; body: string; at: Date; targetScreen: Extract<NotificationAction, { type: "open-screen" }>["screen"]; state: DragonState }) {
+  if (!Capacitor.isNativePlatform()) return;
+  const { LocalNotifications } = await import("@capacitor/local-notifications");
+  const id = stableNotificationId(input.key);
+  await LocalNotifications.cancel({ notifications: [{ id }] });
+  await LocalNotifications.schedule({ notifications: [{ id, title: input.title, body: input.body, schedule: { at: outsideQuietHours(input.at, input.state) }, actionTypeId: "open-useful-action", extra: { targetScreen: input.targetScreen }, threadIdentifier: "dragon-mode-useful-actions" }] });
+}
+
+const cadenceDays = (cadence: DragonState["journey"]["incomeSources"][number]["cadence"]) => cadence === "weekly" ? 7 : cadence === "fortnightly" ? 14 : cadence === "monthly" ? 30 : cadence === "quarterly" ? 91 : cadence === "annual" ? 365 : 0;
 
 export const cancelClaimantReminder = (id: string) => cancelNotification(`claimant-${id}`);
 export const cancelWishReminder = (id: string) => cancelNotification(`wish-${id}`);
@@ -181,10 +215,35 @@ export async function reconcileNotificationSchedule(state: DragonState) {
   }
   const weeklyId = stableNotificationId("weekly-review");
   await LocalNotifications.cancel({ notifications: [{ id: weeklyId }] });
-  if (preferences.weeklyReview) await LocalNotifications.schedule({ notifications: [{ id: weeklyId, title: "A calm weekly Lair review", body: "One look is enough: check what changed, choose one useful step, then leave the vault in peace.", schedule: { on: { weekday: 1, hour: 18, minute: 0 }, repeats: true }, threadIdentifier: "dragon-mode-review" }] });
+  if (preferences.weeklyReview) await LocalNotifications.schedule({ notifications: [{ id: weeklyId, title: "A calm weekly Lair review", body: "One look is enough: check what changed, choose one useful step, then leave the vault in peace.", schedule: { on: { weekday: state.profile.reviewDay, hour: state.profile.reviewHour, minute: 0 }, repeats: true }, actionTypeId: "open-useful-action", extra: { targetScreen: "lair" }, threadIdentifier: "dragon-mode-review" }] });
   const priceId = stableNotificationId("price-changes");
   await LocalNotifications.cancel({ notifications: [{ id: priceId }] });
   const changed = state.subscriptions.filter((subscription) => subscription.priceChange);
-  if (preferences.priceChanges && changed.length) await LocalNotifications.schedule({ notifications: [{ id: priceId, title: "A claimant changed its tribute", body: `${changed.map((item) => item.name).slice(0, 2).join(" and ")} ${changed.length === 1 ? "has" : "have"} a price change ready for review.`, schedule: { at: new Date(Date.now() + 5 * 60_000) }, threadIdentifier: "dragon-mode-price-changes" }] });
+  if (preferences.priceChanges && changed.length) await LocalNotifications.schedule({ notifications: [{ id: priceId, title: "A recurring cost changed", body: "A price change is ready for a calm review. No action is assumed.", schedule: { at: outsideQuietHours(new Date(Date.now() + 5 * 60_000), state) }, actionTypeId: "open-useful-action", extra: { targetScreen: "tribute" }, threadIdentifier: "dragon-mode-price-changes" }] });
+  const reviewNeeded = state.accounts.some((account) => account.reconciliationStatus === "needs-review") || state.imports.batches.some((batch) => batch.status === "committed" && batch.candidates.some((candidate) => candidate.proposedAction === "hold" && !candidate.committedTransactionId && candidate.resolution !== "ignore" && candidate.resolution !== "one-is-echo"));
+  if (preferences.importReview && reviewNeeded) await scheduleActionReminder({ key: "import-review", title: "A ledger review is ready", body: "One imported or reconciled record is waiting for your confirmation.", at: new Date(Date.now() + 5 * 60_000), targetScreen: "import", state });
+  else await cancelNotification("import-review");
+  const importantUncertainty = reviewNeeded || state.transactions.some((transaction) => (transaction.unusual || transaction.duplicate) && !transaction.reviewedAt);
+  if (preferences.importantUncertainty && importantUncertainty) await scheduleActionReminder({ key: "important-uncertainty", title: "One useful check is waiting", body: "DragonMode found an uncertainty that only you can confirm. Nothing was changed automatically.", at: new Date(Date.now() + 7 * 60_000), targetScreen: reviewNeeded ? "import" : "hoard", state });
+  else await cancelNotification("important-uncertainty");
+  const openChapter = [...state.journey.chapters].reverse().find((chapter) => !chapter.completedAt);
+  if (preferences.storyChapter && openChapter) await scheduleActionReminder({ key: "story-chapter", title: "A Living Atlas chapter is ready", body: "An optional, permanent chapter is waiting. It will not expire.", at: new Date(Date.now() + 10 * 60_000), targetScreen: "journey", state });
+  else await cancelNotification("story-chapter");
+  const now = new Date();
+  const monthlyAt = new Date(now.getFullYear(), now.getMonth() + (now.getDate() >= 1 ? 1 : 0), 1, state.profile.reviewHour, 0, 0, 0);
+  if (preferences.monthlyReview) await scheduleActionReminder({ key: "monthly-review", title: "Your monthly Chronicle can close", body: "Review the mapped month, its assumptions, and anything still unresolved when useful.", at: monthlyAt, targetScreen: "analytics", state });
+  else await cancelNotification("monthly-review");
+  const expectedDates = state.journey.incomeSources.flatMap((source) => {
+    const days = cadenceDays(source.cadence);
+    if (!days || !source.lastSeenAt) return [];
+    const next = new Date(source.lastSeenAt);
+    while (next.getTime() <= Date.now()) next.setTime(next.getTime() + days * 86_400_000);
+    return [next];
+  }).sort((a, b) => a.getTime() - b.getTime());
+  if (preferences.expectedIncome && expectedDates[0]) await scheduleActionReminder({ key: "expected-income", title: "An expected-income checkpoint is near", body: "Review whether the mapped timing still looks right. Irregular income is always allowed.", at: expectedDates[0], targetScreen: "journey", state });
+  else await cancelNotification("expected-income");
+  const rateDates = state.accounts.flatMap((account) => [account.promotionEnd, account.maturityDate, account.nextInterestDate].filter(Boolean).map((value) => new Date(value!))).filter((date) => date.getTime() > Date.now()).sort((a, b) => a.getTime() - b.getTime());
+  if (preferences.rateOrMaturity && rateDates[0]) await scheduleActionReminder({ key: "rate-or-maturity", title: "An account date is approaching", body: "A mapped promotion, interest, or maturity date is ready for review.", at: new Date(rateDates[0].getTime() - 24 * 60 * 60_000), targetScreen: "hoard", state });
+  else await cancelNotification("rate-or-maturity");
   return { scheduled: true, reason: "Friendly reminders reconciled." };
 }

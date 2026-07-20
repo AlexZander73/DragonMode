@@ -116,25 +116,112 @@ export function syncIncomeSources(state: DragonState): IncomeSource[] {
 
 const compoundingPeriods = (account: Account) => account.compounding === "annual" ? 1 : account.compounding === "monthly" ? 12 : 365;
 
-const accountInterest = (account: Account, from: Date, to: Date) => {
-  if (!account.apy || account.balance <= 0 || !["savings", "cash", "transaction"].includes(account.type)) return 0;
+const transactionDeltaForAccount = (state: DragonState, accountId: string, fromExclusive: number, toInclusive: number) => state.transactions
+  .filter((transaction) => transaction.status === "cleared" && new Date(transaction.date).getTime() > fromExclusive && new Date(transaction.date).getTime() <= toInclusive)
+  .reduce((sum, transaction) => {
+    let delta = 0;
+    if (transaction.accountId === accountId) delta += transaction.direction === "income" ? transaction.amount : -transaction.amount;
+    if (transaction.transfer && transaction.transferToAccountId === accountId) delta += transaction.direction === "income" ? -transaction.amount : transaction.amount;
+    return sum + delta;
+  }, 0);
+
+export function accountBalanceAt(state: DragonState, account: Account, at: Date) {
+  const target = at.getTime();
+  const snapshots = [...(account.balanceSnapshots ?? [])]
+    .filter((snapshot) => snapshot.confirmed && new Date(snapshot.capturedAt).getTime() <= target)
+    .sort((a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime());
+  const snapshot = snapshots.at(-1);
+  if (snapshot) return Math.max(0, snapshot.balance + transactionDeltaForAccount(state, account.id, new Date(snapshot.capturedAt).getTime(), target));
+  const now = Date.now();
+  if (target >= now) return Math.max(0, account.balance);
+  return Math.max(0, account.balance - transactionDeltaForAccount(state, account.id, target, now));
+}
+
+const rateAt = (account: Account, timestamp: number) => {
+  const period = [...(account.rateHistory ?? [])]
+    .filter((item) => timestamp >= new Date(item.startsAt).getTime() && (!item.endsAt || timestamp < new Date(item.endsAt).getTime()))
+    .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime())[0];
+  const baseApy = period?.baseApy ?? account.apy ?? 0;
+  const promotionStart = account.promotionStart ? new Date(account.promotionStart).getTime() : Number.POSITIVE_INFINITY;
+  const promotionEnd = account.promotionEnd ? new Date(account.promotionEnd).getTime() : Number.NEGATIVE_INFINITY;
+  const promotionActive = Boolean(account.promotionalApy && timestamp >= promotionStart && timestamp < promotionEnd);
+  const promotionalApy = period?.promotionalApy ?? (promotionActive ? account.promotionalApy : undefined);
+  const bonusStatus = period?.bonusStatus ?? account.bonusStatus ?? "unknown";
+  const bonusApy = bonusStatus === "met" ? (period?.bonusApy ?? account.bonusApy ?? 0) : 0;
+  return { baseApy, promotionalApy, bonusApy, bonusStatus };
+};
+
+const interestFor = (balance: number, annualRate: number, years: number, periods: number) => annualRate > 0 && balance > 0 && years > 0
+  ? balance * (Math.pow(1 + annualRate / 100 / periods, periods * years) - 1)
+  : 0;
+
+const accountInterest = (state: DragonState, account: Account, from: Date, to: Date): IdleReward["sources"][number] | null => {
+  if (!["savings", "cash", "transaction"].includes(account.type)) return null;
   const boundaries = [from.getTime(), to.getTime()];
-  if (account.promotionStart) boundaries.push(Math.max(from.getTime(), Math.min(to.getTime(), new Date(account.promotionStart).getTime())));
-  if (account.promotionEnd) boundaries.push(Math.max(from.getTime(), Math.min(to.getTime(), new Date(account.promotionEnd).getTime())));
+  const addBoundary = (value?: string) => {
+    if (!value) return;
+    const time = new Date(value).getTime();
+    if (time > from.getTime() && time < to.getTime()) boundaries.push(time);
+  };
+  addBoundary(account.promotionStart);
+  addBoundary(account.promotionEnd);
+  for (const period of account.rateHistory ?? []) { addBoundary(period.startsAt); addBoundary(period.endsAt); }
+  for (const snapshot of account.balanceSnapshots ?? []) addBoundary(snapshot.capturedAt);
+  for (const transaction of state.transactions.filter((item) => item.accountId === account.id || (item.transfer && item.transferToAccountId === account.id))) addBoundary(transaction.date);
   const ordered = [...new Set(boundaries)].sort((a, b) => a - b);
-  let workingBalance = account.balance;
+  const periods = compoundingPeriods(account);
+  let accrued = 0;
+  let baseAmount = 0;
+  let promotionalAmount = 0;
+  let bonusAmount = 0;
+  let lastBalance = accountBalanceAt(state, account, from);
+  let highestRate = 0;
+  let observedBonusStatus: "met" | "not-met" | "unknown" = account.bonusStatus ?? "unknown";
   for (let index = 0; index < ordered.length - 1; index += 1) {
     const start = ordered[index];
     const end = ordered[index + 1];
     if (end <= start) continue;
+    const realBalance = accountBalanceAt(state, account, new Date(start));
+    const balance = Math.max(0, realBalance + accrued);
+    lastBalance = realBalance;
     const midpoint = start + (end - start) / 2;
-    const promotional = Boolean(account.promotionalApy && account.promotionStart && account.promotionEnd && midpoint >= new Date(account.promotionStart).getTime() && midpoint <= new Date(account.promotionEnd).getTime());
-    const annualRate = (promotional ? account.promotionalApy : account.apy) ?? 0;
-    const periods = compoundingPeriods(account);
+    const rate = rateAt(account, midpoint);
+    observedBonusStatus = rate.bonusStatus;
+    const promotionalUplift = Math.max(0, (rate.promotionalApy ?? rate.baseApy) - rate.baseApy);
     const years = (end - start) / DAY_MS / 365;
-    workingBalance *= Math.pow(1 + annualRate / 100 / periods, periods * years);
+    const totalRate = rate.baseApy + promotionalUplift + rate.bonusApy;
+    const totalForPeriod = interestFor(balance, totalRate, years, periods);
+    const base = totalRate ? totalForPeriod * rate.baseApy / totalRate : 0;
+    const promo = totalRate ? totalForPeriod * promotionalUplift / totalRate : 0;
+    const bonus = totalRate ? totalForPeriod * rate.bonusApy / totalRate : 0;
+    baseAmount += base;
+    promotionalAmount += promo;
+    bonusAmount += bonus;
+    accrued += base + promo + bonus;
+    highestRate = Math.max(highestRate, rate.baseApy + promotionalUplift + rate.bonusApy);
   }
-  return Math.max(0, workingBalance - account.balance);
+  const amount = baseAmount + promotionalAmount + bonusAmount;
+  if (amount < 0.005) return null;
+  const postedAmount = state.transactions
+    .filter((transaction) => transaction.accountId === account.id && transaction.status === "cleared" && transaction.direction === "income" && !transaction.transfer && /interest/i.test(`${transaction.merchant} ${transaction.originalDescription ?? ""}`) && new Date(transaction.date).getTime() >= from.getTime() && new Date(transaction.date).getTime() <= to.getTime())
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  return {
+    id: `interest-${account.id}`,
+    label: account.name,
+    kind: "interest",
+    amount,
+    baseAmount,
+    promotionalAmount,
+    bonusAmount,
+    bonusStatus: observedBonusStatus,
+    from: from.toISOString(),
+    to: to.toISOString(),
+    balanceUsed: lastBalance,
+    annualRate: highestRate,
+    postedAmount: postedAmount || undefined,
+    differenceFromPosted: postedAmount ? postedAmount - amount : undefined,
+    assumption: account.balanceSnapshots?.length ? "Uses confirmed snapshots and cleared movements between rate boundaries." : "Derived backward from the current balance and known cleared movements; confirm against a statement.",
+  };
 };
 
 export function calculateIdleReward(state: DragonState, fromValue: string, to = new Date()): IdleReward | null {
@@ -143,14 +230,14 @@ export function calculateIdleReward(state: DragonState, fromValue: string, to = 
   const from = new Date(Math.max(requestedFrom.getTime(), to.getTime() - MAX_IDLE_DAYS * DAY_MS));
   const sources: IdleReward["sources"] = [];
   for (const account of state.accounts) {
-    const amount = accountInterest(account, from, to);
-    if (amount >= 0.005) sources.push({ id: `interest-${account.id}`, label: account.name, kind: "interest", amount });
+    const source = accountInterest(state, account, from, to);
+    if (source) sources.push(source);
   }
   const elapsedYears = (to.getTime() - from.getTime()) / DAY_MS / 365;
   for (const position of state.investments) {
     const value = position.units * (position.marketPrice ?? position.unitPrice);
     const amount = value * ((position.dividendYield ?? 0) / 100) * elapsedYears;
-    if (amount >= 0.005) sources.push({ id: `dividend-${position.id}`, label: position.name, kind: "dividend", amount });
+    if (amount >= 0.005) sources.push({ id: `dividend-${position.id}`, label: position.name, kind: "dividend", amount, from: from.toISOString(), to: to.toISOString(), balanceUsed: value, annualRate: position.dividendYield ?? 0, assumption: "Illustration using the last confirmed/manual value and trailing yield; it is not accrued or spendable cash." });
   }
   const estimatedInterest = sources.filter((item) => item.kind === "interest").reduce((sum, item) => sum + item.amount, 0);
   const estimatedDividends = sources.filter((item) => item.kind === "dividend").reduce((sum, item) => sum + item.amount, 0);
@@ -163,7 +250,9 @@ export function calculateIdleReward(state: DragonState, fromValue: string, to = 
     estimatedInterest,
     estimatedDividends,
     total,
-    starShards: Math.max(1, Math.round(total * 4)),
+    starShards: 0,
+    keeperReward: 0,
+    estimateLabel: "Editable illustration; never added to real balances",
     sources,
   };
 }
@@ -206,11 +295,53 @@ const chapterCopy = (state: DragonState, snapshot: FinancialSnapshot): Omit<Jour
   };
 };
 
+type AuthoredChapter = Omit<JourneyChapter, "id" | "dayKey" | "createdAt" | "direction"> & { contentId: string };
+
+export const EVERGREEN_ACT_ONE: AuthoredChapter[] = [
+  { contentId: "act1-sleeping-door", chapterNumber: 1, narrativeLayer: "evergreen", replayable: true, title: "The Sleeping Door", speaker: "Moss", opening: "A door of green glass waits beneath the lair. It does not ask how large the hoard is. It asks what kind of keeper will carry the light.", ending: "The door remembers the answer as a tone, not a rule. Every useful tool remains open whichever path you named.", choices: ["Lead with gentleness", "Lead with curiosity", "Lead with quiet courage"], actionTitle: "Choose how the Atlas should speak", actionDescription: "Review your plain-language and story settings. Nothing financial changes.", actionCategory: "Tend" },
+  { contentId: "act1-count-treasure", chapterNumber: 2, narrativeLayer: "evergreen", replayable: true, title: "Count the Treasure", speaker: "Bramble Stoneheart", opening: "Bramble opens the first ledger and leaves room for both confirmed figures and honest approximations. A map may begin before every road is known.", ending: "One account is enough to wake the chamber. The original source remains beside every imported mark.", choices: ["Map one confirmed account", "Begin with an approximation", "Paste what the bank already shows"], actionTitle: "Map or import one account", actionDescription: "Add one useful balance or use the Trusted Ledger preview.", actionCategory: "Tend" },
+  { contentId: "act1-echoes-ledger", chapterNumber: 3, narrativeLayer: "evergreen", replayable: true, title: "Echoes in the Ledger", speaker: "Bramble Stoneheart", opening: "Two marks ring with the same date, merchant, and amount. Bramble refuses to erase either: similarity is a question, never proof.", ending: "The archive now knows three honest answers: both happened, one is an echo, or not sure yet.", choices: ["Both may be true", "Follow the source evidence", "Leave uncertainty visible"], actionTitle: "Review one possible echo", actionDescription: "Use the side-by-side evidence and keep human truth in control.", actionCategory: "Guard" },
+  { contentId: "act1-procession-claimants", chapterNumber: 4, narrativeLayer: "evergreen", replayable: true, title: "Procession of Claimants", speaker: "Asha Emberwright", opening: "The recurring claimants arrive without accusation. Each carries a cadence, a next date, and a question about whether it still belongs in the hall.", ending: "The hall is clearer. Keeping, changing, and deciding later are all valid endings.", choices: ["Name the repeating costs", "Review one changed price", "Let the quiet claimants wait"], actionTitle: "Review one recurring cost", actionDescription: "Confirm a cadence, next charge, or price change without pressure to cancel.", actionCategory: "Guard" },
+  { contentId: "act1-scrying-pool", chapterNumber: 5, narrativeLayer: "evergreen", replayable: true, title: "Wake the Scrying Pool", speaker: "Kael Windmere", opening: "Kael wakes the pool with mapped movements. The reflection shows ranges and assumptions—not a single future pretending to be certain.", ending: "The pool becomes a tool instead of an oracle. Every assumption can be changed.", choices: ["Show the cautious range", "Follow the current path", "Inspect the assumptions first"], actionTitle: "Open one editable illustration", actionDescription: "Visit the Lore Library and inspect where each number came from.", actionCategory: "Learn" },
+  { contentId: "act1-chain-deep", chapterNumber: 6, narrativeLayer: "evergreen", replayable: true, title: "The Chain in the Deep", speaker: "Mara Ironroot", opening: "Mara lays the chains side by side: smallest first, highest rate first, minimums, or a custom order. None is declared the moral path.", ending: "The comparison remains an illustration. The keeper keeps the choice—and the right to make no change today.", choices: ["Compare the methods", "Protect the next payment", "Pause without losing progress"], actionTitle: "Compare two debt paths", actionDescription: "Inspect payoff time and interest assumptions without selecting a strategy automatically.", actionCategory: "Learn" },
+  { contentId: "act1-sleeping-wish", chapterNumber: 7, narrativeLayer: "evergreen", replayable: true, title: "The Sleeping Wish", speaker: "Asha Emberwright", opening: "A wish rests beneath a soft cloth. The pause is not a test of virtue; it is simply room for desire, cost, timing, and real life to speak together.", ending: "Claimed, saved, released, or extended—the wish becomes information rather than judgement.", choices: ["Keep the wish resting", "See its impact with my numbers", "Let the wish change shape"], actionTitle: "Reflect on one resting Wish", actionDescription: "Use the editable impact illustration; any outcome remains valid.", actionCategory: "Tend" },
+  { contentId: "act1-star-vault", chapterNumber: 8, narrativeLayer: "evergreen", replayable: true, title: "The Star Vault", speaker: "Sol Arden", opening: "Sol separates three lights: base interest, promotional uplift, and a bonus whose conditions are not yet known. None is poured into the real balance before it posts.", ending: "The estimate is useful because its limits are visible. A future statement may confirm or correct it.", choices: ["Inspect the rate periods", "Mark the promotion ending", "Leave unknown bonuses unknown"], actionTitle: "Review one account rate", actionDescription: "Confirm base, promotion end, bonus status, or maturity details.", actionCategory: "Learn" },
+  { contentId: "act1-storm-map", chapterNumber: 9, narrativeLayer: "evergreen", replayable: true, title: "The Storm Map", speaker: "Mara Ironroot", opening: "Rain crosses the map and one balance refuses to reconcile. Mara draws the difference in clear ink. No hidden adjustment is allowed to make the storm look prettier.", ending: "The difference remains visible, bounded, and reversible. Earlier victories stay exactly where they were.", choices: ["Review the difference", "Hold uncertain rows for later", "Ask for one gentler next step"], actionTitle: "Check reconciliation coverage", actionDescription: "Review the latest receipt or confirm a balance. Do not force a guess.", actionCategory: "Guard" },
+  { contentId: "act1-keeper-constellation", chapterNumber: 10, narrativeLayer: "evergreen", replayable: true, title: "The Keeper’s Constellation", speaker: "Moss", opening: "The first ten pages rise into a constellation shaped by returns, questions, and honest records—not by the size of the treasure beneath them.", ending: "A Relic Constellation opens. Surprise is optional, crafting is always possible, and every season will return.", choices: ["Open a surprise relic", "Target a collection", "Craft the next known light"], actionTitle: "Choose a cosmetic path", actionDescription: "Visit Relic Constellations. No reward affects financial outcomes.", actionCategory: "Grow" },
+];
+
+function personalChronicleCopy(state: DragonState, now: Date): AuthoredChapter | null {
+  const seen = new Set(state.journey.chapters.map((chapter) => chapter.contentId));
+  const committed = state.imports.batches.find((batch) => batch.status === "committed");
+  if (committed && !seen.has("chronicle-first-import")) return { contentId: "chronicle-first-import", narrativeLayer: "chronicle", replayable: true, triggerId: committed.id, factsUsed: [committed.id, committed.accountId], title: "Ink That Remembers", speaker: "Bramble Stoneheart", opening: `Bramble seals ${committed.sourceDisplayName} into the archive. Every accepted, skipped, and held row keeps its source trail.`, ending: "The receipt remains reversible, and the archive remembers what changed without exposing it beyond this device.", choices: ["Read the receipt", "Inspect one original row", "Carry the batch onward"], actionTitle: "Review the import receipt", actionDescription: "Confirm what was added, skipped, updated, or held.", actionCategory: "Guard" };
+  const reconciled = state.imports.reconciliations.find((item) => item.status === "reconciled");
+  if (reconciled && !seen.has("chronicle-first-reconciliation")) return { contentId: "chronicle-first-reconciliation", narrativeLayer: "chronicle", replayable: true, triggerId: reconciled.id, factsUsed: [reconciled.id, reconciled.accountId], title: "The Balanced Bell", speaker: "Bramble Stoneheart", opening: "For the first time, the ledger and a confirmed balance ring the same note. Bramble celebrates the evidence, not the amount.", ending: "The bell becomes a permanent memory of a ledger that could explain itself.", choices: ["Archive the receipt", "Thank the careful evidence", "Let the bell ring once"], actionTitle: "Keep the confirmed date", actionDescription: "No action is required; the reconciliation remains in history.", actionCategory: "Tend" };
+  const pairedCharges = state.imports.batches.flatMap((batch) => batch.candidates).find((candidate) => candidate.resolution === "both-happened" && candidate.duplicateClusterId);
+  if (pairedCharges && !seen.has("chronicle-legitimate-pair")) return { contentId: "chronicle-legitimate-pair", narrativeLayer: "chronicle", replayable: true, triggerId: pairedCharges.id, factsUsed: [pairedCharges.id, pairedCharges.duplicateClusterId!], title: "Two Tickets at Moonfair", speaker: "Bramble Stoneheart", opening: "Two identical marks enter the archive together. The keeper confirms that both happened, and Bramble keeps both without turning similarity into erasure.", ending: "The archive remembers that human truth can look exactly alike twice.", choices: ["Keep both source trails", "Remember the distinction", "Let the pair stand"], actionTitle: "Review the confirmed pair", actionDescription: "Both movements remain independent and traceable.", actionCategory: "Guard" };
+  const posted = state.imports.batches.flatMap((batch) => batch.candidates).find((candidate) => candidate.resolution === "pending-posted");
+  if (posted && !seen.has("chronicle-pending-posted")) return { contentId: "chronicle-pending-posted", narrativeLayer: "chronicle", replayable: true, triggerId: posted.id, factsUsed: [posted.id, posted.matchedTransactionId ?? "pending"], title: "The Vanishing Hold", speaker: "Bramble Stoneheart", opening: "A temporary hold settles into its posted form. The lineage is kept, but the balance carries only one movement.", ending: "What changed is visible; what was temporary is not counted twice.", choices: ["Follow the lineage", "Keep the posted truth", "Close the hold gently"], actionTitle: "Inspect the replacement trail", actionDescription: "The original pending identity remains in provenance.", actionCategory: "Guard" };
+  const verifiedInterest = state.transactions.find((transaction) => transaction.direction === "income" && transaction.status === "cleared" && /interest/i.test(transaction.merchant));
+  if (verifiedInterest && !seen.has("chronicle-posted-interest")) return { contentId: "chronicle-posted-interest", narrativeLayer: "chronicle", replayable: true, triggerId: verifiedInterest.id, factsUsed: [verifiedInterest.id, verifiedInterest.accountId], title: "A Star Becomes Ink", speaker: "Sol Arden", opening: "An interest movement has posted as a real record. Sol places it beside the earlier illustration without claiming that the estimate caused or predicted it.", ending: "Estimated light and posted ink remain separate, ready to compare.", choices: ["Compare the two", "Keep the posted record", "Review the rate period"], actionTitle: "Compare posted and estimated interest", actionDescription: "Inspect the account rate and the real transaction without changing either.", actionCategory: "Learn" };
+  const irregularArrival = state.journey.incomeSources.find((source) => source.reliability !== "steady" && source.lastSeenAt);
+  if (irregularArrival && !seen.has("chronicle-irregular-income")) return { contentId: "chronicle-irregular-income", narrativeLayer: "chronicle", replayable: true, triggerId: irregularArrival.id, factsUsed: [irregularArrival.id, irregularArrival.lastSeenAt!], title: "The Caravan Arrives", speaker: "Pip Reedwhistle", opening: "An irregular income route appears again. Pip records the arrival without turning its timing into a promise about the next one.", ending: "The route stays visible, variable, and welcome in the plan.", choices: ["Update the best current expectation", "Keep the route irregular", "Celebrate the arrival"], actionTitle: "Review the income route", actionDescription: "Adjust its cadence or expectation only if useful.", actionCategory: "Tend" };
+  const completedGoal = state.goals.find((goal) => goal.status === "completed");
+  if (completedGoal && !seen.has(`chronicle-goal-${completedGoal.id}`)) return { contentId: `chronicle-goal-${completedGoal.id}`, narrativeLayer: "chronicle", replayable: true, triggerId: completedGoal.id, factsUsed: [completedGoal.id], title: "A Light Reaches Its Mark", speaker: "Asha Emberwright", opening: "A chosen milestone is now marked complete. Asha celebrates the keeper’s stated and linked progress without moving any money herself.", ending: "The milestone becomes a permanent page, even if the next goal changes shape.", choices: ["Name what helped", "Keep the page quietly", "Choose no next goal yet"], actionTitle: "Review the completed goal", actionDescription: "Declared and linked progress remain distinguishable.", actionCategory: "Grow" };
+  const decidedWish = state.wishes.find((wish) => wish.status !== "resting");
+  if (decidedWish && !seen.has(`chronicle-wish-${decidedWish.id}`)) return { contentId: `chronicle-wish-${decidedWish.id}`, narrativeLayer: "chronicle", replayable: true, triggerId: decidedWish.id, factsUsed: [decidedWish.id, decidedWish.status], title: "The Wish Chooses a Shape", speaker: "Asha Emberwright", opening: `A resting wish was ${decidedWish.status}. Asha records the choice without ranking it: each ending can be thoughtful.`, ending: "The pause did its work by making room for a decision, not by demanding one answer.", choices: ["Remember the reason", "Let the choice rest", "Return to the wider map"], actionTitle: "Keep or edit the reflection", actionDescription: "The outcome remains yours and can inform future choices without judgement.", actionCategory: "Tend" };
+  const returnedAfter = (now.getTime() - new Date(state.journey.lastOpenedAt).getTime()) / DAY_MS;
+  const returnTier = returnedAfter >= 90 ? "90" : returnedAfter >= 30 ? "30" : returnedAfter >= 7 ? "7" : "";
+  if (returnTier && !seen.has(`chronicle-warm-return-${returnTier}`)) return { contentId: `chronicle-warm-return-${returnTier}`, narrativeLayer: "chronicle", replayable: true, triggerId: `return-${Math.floor(returnedAfter)}`, factsUsed: [state.journey.lastOpenedAt], title: "The Lantern Was Kept", speaker: "Moss", opening: "The lair did not count the days as failures. Moss kept one lantern warm and the map waited without taking anything away.", ending: "The return becomes a page of its own: evidence that a paused path can continue gently.", choices: ["See what changed", "Take one small check", "Simply return"], actionTitle: "Complete one calm Hoard Check", actionDescription: "One useful glance is enough. No catch-up streak is required.", actionCategory: "Tend" };
+  return null;
+}
+
 export function createJourneyChapter(state: DragonState, snapshot: FinancialSnapshot, now = new Date()): JourneyChapter {
   const dayKey = journeyDayKey(now);
-  const copy = chapterCopy(state, snapshot);
+  const chronicle = personalChronicleCopy(state, now);
+  const completedEvergreen = new Set(state.journey.chapters.filter((chapter) => chapter.narrativeLayer === "evergreen").map((chapter) => chapter.contentId));
+  const evergreen = EVERGREEN_ACT_ONE.find((chapter) => !completedEvergreen.has(chapter.contentId));
+  const copy = chronicle ?? evergreen ?? chapterCopy(state, snapshot);
   const carriedChoice = latestJourneyChapter(state)?.selectedChoice;
-  return { id: `journey-${dayKey}`, dayKey, createdAt: now.toISOString(), ...copy, opening: carriedChoice ? `${copy.opening} The party remembers your earlier choice: “${carriedChoice}.”` : copy.opening };
+  return { id: `journey-${dayKey}-${copy.contentId ?? "road"}`, dayKey, createdAt: now.toISOString(), direction: snapshot.direction, contentVersion: 1, locale: state.profile.locale, fallbackCopy: "A calm summary is available. No financial task depends on reading this scene.", accessibilitySummary: `${copy.title}. Optional story about ${copy.actionTitle.toLowerCase()}.`, reviewedAt: "2026-07-21", narrativeLayer: copy.narrativeLayer ?? "fallback", ...copy, opening: carriedChoice ? `${copy.opening} The party remembers your earlier choice: “${carriedChoice}.”` : copy.opening };
 }
 
 function journeyChapterDue(state: DragonState, now: Date) {
@@ -245,7 +376,7 @@ export function processJourneySession(state: DragonState, now = new Date()): Dra
       incomeSources,
       lastOpenedAt: now.toISOString(),
       lastSnapshotAt: now.toISOString(),
-      currentNode: chapter ? (state.journey.currentNode + 1) % 12 : state.journey.currentNode,
+      currentNode: chapter ? (state.journey.currentNode + 1) % EVERGREEN_ACT_ONE.length : state.journey.currentNode,
       snapshots,
       chapters: chapter ? [...state.journey.chapters, chapter].slice(-60) : state.journey.chapters,
       idleRewards: idleReward ? [idleReward, ...state.journey.idleRewards].slice(0, 50) : state.journey.idleRewards,

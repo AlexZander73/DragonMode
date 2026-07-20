@@ -6,6 +6,7 @@ import {
   estimateDebtPlan,
   getActiveQuests,
   getHoardSummary,
+  getMonthlyFlow,
   monthlySubscriptionAmount,
   monthlyTribute,
   petBondLevel,
@@ -15,8 +16,12 @@ import {
 } from "../app/calculations";
 import { createEmptyState, createSeedState, normalizeState, SCHEMA_VERSION } from "../app/data";
 import { EXPERIMENTAL_MARKET_DATA } from "../app/constants";
-import { calculateIdleReward, captureFinancialSnapshot, processJourneySession, shouldRefreshMarketData } from "../app/journey";
+import { calculateIdleReward, captureFinancialSnapshot, createJourneyChapter, EVERGREEN_ACT_ONE, processJourneySession, shouldRefreshMarketData } from "../app/journey";
 import { createTransaction, deleteTransaction, replaceTransaction } from "../app/ledger";
+import { commitImportBatch, resolveImportCandidate, stageTextImport, undoImportBatch } from "../app/imports";
+import { completeHoardCheck, getHoardCheck } from "../app/check-ins";
+import { buildCalculatorResults, completeLoreCard, recalculateResult } from "../app/education";
+import { archiveSeason, RELIC_ITEMS, revealRelic } from "../app/collection";
 
 test("subscription cadences normalize to a monthly planning cost", () => {
   const subscription = createSeedState().subscriptions[0];
@@ -146,6 +151,26 @@ test("search and schema migration retain usable local data", () => {
   assert.deepEqual(migrated.progression.storyChoices, {});
 });
 
+test("schema v7 migration preserves records, settings, story, pets, estimates, and legacy cosmetic value", () => {
+  const legacy = createSeedState();
+  legacy.schemaVersion = 7;
+  legacy.journey.starShards = 37;
+  legacy.journey.idleRewards = [{ id: "old-estimate", from: "2026-07-01T00:00:00.000Z", to: "2026-07-02T00:00:00.000Z", estimatedInterest: 1, estimatedDividends: 0, total: 1, starShards: 5, sources: [] }];
+  const raw = structuredClone(legacy) as unknown as Record<string, unknown>;
+  delete raw.collection;
+  delete raw.imports;
+  delete raw.checkIns;
+  delete raw.education;
+  const migrated = normalizeState(raw);
+  assert.equal(migrated.schemaVersion, SCHEMA_VERSION);
+  assert.equal(migrated.transactions.length, legacy.transactions.length);
+  assert.equal(migrated.pets.length, legacy.pets.length);
+  assert.equal(migrated.profile.reducedMotion, legacy.profile.reducedMotion);
+  assert.equal(migrated.journey.idleRewards[0].id, "old-estimate");
+  assert.equal(migrated.collection.stardust, 37);
+  assert.deepEqual(migrated.progression.relics, legacy.progression.relics);
+});
+
 test("personal first-run state is truly empty while keeping the fantasy shell", () => {
   const state = createEmptyState();
   assert.equal(state.profile.dataMode, "personal");
@@ -202,10 +227,44 @@ test("Idle Vault estimates yield without changing any financial record", () => {
   const state = createSeedState();
   const before = structuredClone({ accounts: state.accounts, investments: state.investments, transactions: state.transactions });
   const reward = calculateIdleReward(state, new Date(Date.now() - 14 * 86_400_000).toISOString());
-  assert.ok(reward && reward.total > 0 && reward.starShards > 0);
+  assert.ok(reward && reward.total > 0 && reward.starShards === 0);
   assert.ok(reward?.sources.some((item) => item.kind === "interest"));
   assert.ok(reward?.sources.some((item) => item.kind === "dividend"));
   assert.deepEqual({ accounts: state.accounts, investments: state.investments, transactions: state.transactions }, before);
+});
+
+test("Idle Vault splits promotion boundaries and does not apply the final balance retroactively", () => {
+  const from = new Date("2026-07-01T12:00:00.000Z");
+  const middle = "2026-07-06T12:00:00.000Z";
+  const to = new Date("2026-07-11T12:00:00.000Z");
+  const state = createEmptyState();
+  state.accounts = [{
+    id: "savings", name: "Promo saver", type: "savings", balance: 2000, apy: 3, promotionalApy: 5,
+    promotionStart: from.toISOString(), promotionEnd: middle, compounding: "daily", includedInHoard: true,
+    chamberId: "vault", icon: "vault", color: "#123", archived: false,
+    balanceSnapshots: [{ id: "opening", accountId: "savings", balance: 1000, capturedAt: from.toISOString(), source: "reconciliation", confirmed: true }],
+  }];
+  state.transactions = [{ id: "deposit", accountId: "savings", date: middle, merchant: "Deposit", amount: 1000, direction: "income", category: "Income", note: "", status: "cleared", createdManually: true }];
+  const reward = calculateIdleReward(state, from.toISOString(), to);
+  const interest = reward?.sources.find((source) => source.kind === "interest");
+  assert.ok(interest && interest.promotionalAmount && interest.promotionalAmount > 0);
+  assert.ok((interest?.baseAmount ?? 0) > (interest?.promotionalAmount ?? 0));
+  const allHigh = structuredClone(state);
+  allHigh.accounts[0].balanceSnapshots = [{ ...allHigh.accounts[0].balanceSnapshots![0], balance: 2000 }];
+  allHigh.transactions = [];
+  const allHighReward = calculateIdleReward(allHigh, from.toISOString(), to);
+  assert.ok((reward?.estimatedInterest ?? 0) < (allHighReward?.estimatedInterest ?? 0));
+});
+
+test("posted interest is compared beside an estimate without being duplicated into it", () => {
+  const state = createEmptyState();
+  state.accounts = [{ id: "saver", name: "Saver", type: "savings", balance: 1005, apy: 5, compounding: "daily", includedInHoard: true, chamberId: "vault", icon: "vault", color: "#123", archived: false, balanceSnapshots: [{ id: "open", accountId: "saver", balance: 1000, capturedAt: "2026-07-01T12:00:00.000Z", source: "reconciliation", confirmed: true }] }];
+  state.transactions = [{ id: "interest", accountId: "saver", date: "2026-07-15T12:00:00.000Z", merchant: "Interest payment", amount: 5, direction: "income", category: "Income", note: "", status: "cleared", createdManually: false, origin: "import" }];
+  const reward = calculateIdleReward(state, "2026-07-01T12:00:00.000Z", new Date("2026-07-21T12:00:00.000Z"));
+  const source = reward?.sources.find((item) => item.id === "interest-saver");
+  assert.equal(source?.postedAmount, 5);
+  assert.ok(source?.amount && source.amount < 5);
+  assert.equal(state.accounts[0].balance, 1005);
 });
 
 test("Journey cadence creates no more than one due chapter and preserves progression", () => {
@@ -225,9 +284,236 @@ test("Journey cadence creates no more than one due chapter and preserves progres
   assert.equal(due.journey.chapters.length, 2);
 });
 
+test("the evergreen campaign has ten permanent authored chapters with accessible content metadata", () => {
+  assert.equal(EVERGREEN_ACT_ONE.length, 10);
+  assert.equal(new Set(EVERGREEN_ACT_ONE.map((chapter) => chapter.contentId)).size, 10);
+  const state = createEmptyState();
+  const now = new Date("2026-07-21T12:00:00.000Z");
+  const snapshot = captureFinancialSnapshot(state, now);
+  const chapter = createJourneyChapter(state, snapshot, now);
+  assert.equal(chapter.contentId, "act1-sleeping-door");
+  assert.equal(chapter.contentVersion, 1);
+  assert.ok(chapter.accessibilitySummary && chapter.fallbackCopy && chapter.replayable);
+});
+
 test("market refresh throttle respects the selected stale interval", () => {
   const now = new Date("2026-07-20T12:00:00.000Z");
   assert.equal(shouldRefreshMarketData(undefined, 24, now), true);
   assert.equal(shouldRefreshMarketData("2026-07-20T00:00:00.000Z", 24, now), false);
   assert.equal(shouldRefreshMarketData("2026-07-18T00:00:00.000Z", 24, now), true);
+});
+
+test("trusted import keeps two legitimate identical theme-park passes when confirmed", () => {
+  const state = createEmptyState();
+  state.accounts = [
+    { id: "bank", name: "Daily account", type: "transaction", balance: 1000, includedInHoard: true, chamberId: "hearth", icon: "wallet", color: "#123456", archived: false },
+  ];
+  const csv = "Date,Description,Amount,Transaction ID\n21/07/2026,Moonfair Pass,-79.00,pass-a\n21/07/2026,Moonfair Pass,-79.00,pass-b";
+  let batch = stageTextImport(state, csv, { accountId: "bank", sourceKind: "csv", dateOrder: "DMY" });
+  assert.equal(batch.candidates.length, 2);
+  assert.ok(batch.candidates.every((candidate) => candidate.proposedAction === "hold"));
+  for (const candidate of batch.candidates) batch = resolveImportCandidate(batch, candidate.id, "both-happened");
+  const committed = commitImportBatch(state, batch);
+  assert.equal(committed.transactions.length, 2);
+  assert.equal(committed.imports.batches[0].counts.added, 2);
+  assert.equal(committed.accounts[0].balance, 842);
+});
+
+test("trusted import skips an exact repeated source and preserves a receipt", () => {
+  const state = createEmptyState();
+  state.accounts = [
+    { id: "bank", name: "Daily account", type: "transaction", balance: 1000, includedInHoard: true, chamberId: "hearth", icon: "wallet", color: "#123456", archived: false },
+  ];
+  const csv = "Date,Description,Amount,Transaction ID\n20/07/2026,Hearth Market,-45.20,bank-1";
+  const first = commitImportBatch(state, stageTextImport(state, csv, { accountId: "bank", sourceKind: "csv" }));
+  const repeated = stageTextImport(first, csv, { accountId: "bank", sourceKind: "csv" });
+  assert.equal(repeated.candidates[0].proposedAction, "skip-exact");
+  const second = commitImportBatch(first, repeated);
+  assert.equal(second.transactions.length, 1);
+  assert.equal(second.imports.batches[0].counts.skipped, 1);
+});
+
+test("trusted import can replace a pending transaction with its posted record", () => {
+  const state = createEmptyState();
+  state.accounts = [
+    { id: "bank", name: "Daily account", type: "transaction", balance: 1000, includedInHoard: true, chamberId: "hearth", icon: "wallet", color: "#123456", archived: false },
+  ];
+  state.transactions = [{ id: "pending", accountId: "bank", date: "2026-07-20T12:00:00.000Z", merchant: "Copper Kettle", amount: 18, direction: "expense", category: "The Roost", note: "", status: "pending", createdManually: false }];
+  const csv = "Date,Description,Amount,Status\n21/07/2026,Copper Kettle,-21.00,Cleared";
+  let batch = stageTextImport(state, csv, { accountId: "bank", sourceKind: "csv" });
+  assert.equal(batch.candidates[0].lifecycleRelationship, "pending-posted");
+  batch = resolveImportCandidate(batch, batch.candidates[0].id, "pending-posted");
+  const committed = commitImportBatch(state, batch);
+  assert.equal(committed.transactions.length, 1);
+  assert.equal(committed.transactions[0].status, "cleared");
+  assert.equal(committed.transactions[0].amount, 21);
+});
+
+test("trusted import reconciliation remains visible and batch undo is exact", () => {
+  const state = createEmptyState();
+  state.accounts = [
+    { id: "bank", name: "Daily account", type: "transaction", balance: 1000, includedInHoard: true, chamberId: "hearth", icon: "wallet", color: "#123456", archived: false },
+  ];
+  const before = structuredClone({ accounts: state.accounts, transactions: state.transactions, chambers: state.chambers });
+  const csv = "Date,Description,Amount\n21/07/2026,Hearth Market,-45.20";
+  const batch = stageTextImport(state, csv, { accountId: "bank", sourceKind: "csv" });
+  const committed = commitImportBatch(state, batch, { closingBalance: 954.8, periodEnd: "2026-07-21T12:00:00.000Z" });
+  assert.equal(committed.imports.reconciliations[0].status, "reconciled");
+  assert.equal(committed.accounts[0].reconciliationStatus, "reconciled");
+  const undone = undoImportBatch(committed, batch.id);
+  assert.deepEqual({ accounts: undone.accounts, transactions: undone.transactions, chambers: undone.chambers }, before);
+  assert.equal(undone.imports.batches[0].status, "undone");
+});
+
+test("trusted import blocks ambiguous date and sign defaults until the mapping is explicit", () => {
+  const state = createEmptyState();
+  state.accounts = [{ id: "bank", name: "Daily", type: "transaction", balance: 100, includedInHoard: true, chamberId: "hearth", icon: "wallet", color: "#123", archived: false }];
+  const source = "Date,Description,Amount\n07/08/2026,Moon Market,25.00";
+  const ambiguous = stageTextImport(state, source, { accountId: "bank", sourceKind: "csv" });
+  assert.equal(ambiguous.mappingConfirmed, false);
+  assert.throws(() => commitImportBatch(state, ambiguous), /Confirm the import mapping/);
+  const confirmed = stageTextImport(state, source, { accountId: "bank", sourceKind: "csv", dateOrder: "DMY", signConvention: "positive-expense" });
+  assert.equal(confirmed.mappingConfirmed, true);
+  assert.equal(commitImportBatch(state, confirmed).transactions[0].direction, "expense");
+});
+
+test("universal paste accepts a natural one-line entry and keeps the original wording", () => {
+  const state = createEmptyState();
+  state.accounts = [{ id: "bank", name: "Daily", type: "transaction", balance: 100, includedInHoard: true, chamberId: "hearth", icon: "wallet", color: "#123", archived: false }];
+  const batch = stageTextImport(state, "I spent $12.50 at Copper Kettle today", { accountId: "bank", sourceKind: "paste", dateOrder: "DMY", signConvention: "negative-expense" });
+  assert.equal(batch.candidates[0].direction, "expense");
+  assert.equal(batch.candidates[0].amount, 12.5);
+  assert.equal(batch.candidates[0].rawSourceRow, "I spent $12.50 at Copper Kettle today");
+  assert.ok(batch.candidates[0].fieldConfidence.date < 0.8);
+});
+
+test("an imported row can be explicitly matched to a manual movement without double-counting", () => {
+  const state = createEmptyState();
+  state.accounts = [{ id: "bank", name: "Daily", type: "transaction", balance: 75, includedInHoard: true, chamberId: "hearth", icon: "wallet", color: "#123", archived: false }];
+  state.transactions = [{ id: "manual", accountId: "bank", date: "2026-07-21T12:00:00.000Z", merchant: "Moon Market", amount: 25, direction: "expense", category: "The Hearth", note: "", status: "cleared", createdManually: true, origin: "manual" }];
+  let batch = stageTextImport(state, "Date,Description,Amount,Transaction ID\n21/07/2026,Moon Market,-25.00,source-1", { accountId: "bank", sourceKind: "csv", dateOrder: "DMY", signConvention: "negative-expense" });
+  batch = resolveImportCandidate(batch, batch.candidates[0].id, "one-is-echo");
+  const committed = commitImportBatch(state, batch);
+  assert.equal(committed.transactions.length, 1);
+  assert.equal(committed.accounts[0].balance, 75);
+  assert.equal(committed.imports.batches[0].counts.matched, 1);
+  assert.equal(committed.transactions[0].rawSourceRow?.includes("Moon Market"), true);
+});
+
+test("two imported account sides form one logical transfer and zero cash-flow income or spending", () => {
+  let state = createEmptyState();
+  state.accounts = [
+    { id: "from", name: "From", type: "transaction", balance: 100, includedInHoard: true, chamberId: "hearth", icon: "wallet", color: "#123", archived: false },
+    { id: "to", name: "To", type: "savings", balance: 200, includedInHoard: true, chamberId: "vault", icon: "vault", color: "#456", archived: false },
+  ];
+  state = commitImportBatch(state, stageTextImport(state, "Date,Description,Amount\n21/07/2026,Transfer out,-50", { accountId: "from", sourceKind: "csv", dateOrder: "DMY", signConvention: "negative-expense" }));
+  let second = stageTextImport(state, "Date,Description,Amount\n21/07/2026,Transfer in,50", { accountId: "to", sourceKind: "csv", dateOrder: "DMY", signConvention: "negative-expense" });
+  assert.ok(second.candidates[0].transferCandidateId);
+  second = resolveImportCandidate(second, second.candidates[0].id, "confirm-transfer");
+  state = commitImportBatch(state, second);
+  assert.equal(state.transactions.length, 2);
+  assert.ok(state.transactions.every((transaction) => transaction.transfer));
+  assert.equal(new Set(state.transactions.map((transaction) => transaction.transferPairId)).size, 1);
+  const flow = getMonthlyFlow(state);
+  assert.equal(flow.inflow, 0);
+  assert.equal(flow.outflow, 0);
+});
+
+test("reused source IDs with different movement facts are not silently skipped", () => {
+  const state = createEmptyState();
+  state.accounts = [{ id: "bank", name: "Daily", type: "transaction", balance: 100, includedInHoard: true, chamberId: "hearth", icon: "wallet", color: "#123", archived: false }];
+  const first = commitImportBatch(state, stageTextImport(state, "Date,Description,Amount,Transaction ID\n20/07/2026,First,-10,reused", { accountId: "bank", sourceKind: "csv", dateOrder: "DMY", signConvention: "negative-expense" }));
+  const second = stageTextImport(first, "Date,Description,Amount,Transaction ID\n21/07/2026,Second,-20,reused", { accountId: "bank", sourceKind: "csv", dateOrder: "DMY", signConvention: "negative-expense" });
+  assert.notEqual(second.candidates[0].proposedAction, "skip-exact");
+});
+
+test("progression reward events are idempotent", () => {
+  const state = createEmptyState();
+  const once = { ...state, progression: addProgressionXp(state, 10, "same-event") };
+  const twice = addProgressionXp(once, 10, "same-event");
+  assert.equal(once.progression.xp, 10);
+  assert.equal(twice.xp, 10);
+});
+
+test("Hoard Check rewards stewardship equally regardless of balance and never punishes absence", () => {
+  const small = createEmptyState();
+  const large = createEmptyState();
+  small.accounts = [{ id: "small", name: "Small", type: "transaction", balance: 10, includedInHoard: true, chamberId: "hearth", icon: "wallet", color: "#123", archived: false, reconciliationStatus: "reconciled", importedThrough: "2026-07-20T12:00:00.000Z" }];
+  large.accounts = [{ ...small.accounts[0], id: "large", name: "Large", balance: 1_000_000 }];
+  const now = new Date("2026-07-21T12:00:00.000Z");
+  assert.equal(getHoardCheck(small, now).kind, "daily");
+  const smallChecked = completeHoardCheck(small, getHoardCheck(small, now), [], now);
+  const largeChecked = completeHoardCheck(large, getHoardCheck(large, now), [], now);
+  assert.equal(smallChecked.checkIns.returnEmbers, 1);
+  assert.equal(largeChecked.checkIns.returnEmbers, 1);
+  assert.equal(smallChecked.progression.xp, largeChecked.progression.xp);
+  const repeated = completeHoardCheck(smallChecked, getHoardCheck(smallChecked, now), [], now);
+  assert.equal(repeated.checkIns.returnEmbers, 1);
+});
+
+test("Lore calculators are auto-filled, editable, explicit about assumptions, and idempotent", () => {
+  const state = createSeedState();
+  const cards = buildCalculatorResults(state, new Date("2026-07-21T12:00:00.000Z"));
+  assert.ok(cards.length >= 13);
+  assert.ok(cards.every((card) => card.fields.length && card.assumptions.length && card.exclusions.length && card.sourceUrl.startsWith("https://")));
+  const interest = cards.find((card) => card.id === "promotion-cliff")!;
+  const original = interest.result;
+  const changed = recalculateResult(state, interest, { Balance: 50_000, Rate: 6 });
+  assert.notEqual(changed, original);
+  const once = completeLoreCard(state, interest.id);
+  const twice = completeLoreCard(once, interest.id);
+  assert.equal(once.education.completedLoreIds.length, 1);
+  assert.equal(twice.checkIns.loreKeys, once.checkIns.loreKeys);
+});
+
+test("calculator backlog includes distinct compound, repayment, and rate-change illustrations", () => {
+  const state = createSeedState();
+  const cards = buildCalculatorResults(state, new Date("2026-07-21T12:00:00.000Z"));
+  const compound = cards.find((card) => card.id === "compound-explorer")!;
+  const credit = cards.find((card) => card.id === "credit-fixed-payment")!;
+  const rateChange = cards.find((card) => card.id === "loan-rate-change")!;
+  assert.match(recalculateResult(state, compound, { Principal: 1000, "Annual rate": 0, "Monthly contribution": 100, Years: 1 }), /2,200/);
+  assert.match(recalculateResult(state, credit, { Balance: 1000, APR: 0, Minimum: 100, "Extra payment": 100 }), /10 months.*5/);
+  assert.notEqual(recalculateResult(state, rateChange, { Balance: 5000, "Current APR": 5, "Scenario APR": 8, "Monthly payment": 250 }), rateChange.result);
+});
+
+test("Relic reveals require earned keys and never mutate financial records", () => {
+  const state = createSeedState();
+  state.checkIns.loreKeys = 0;
+  assert.throws(() => revealRelic(state, "targeted", { eventId: "no-key" }), /earned Lore Key/);
+  state.checkIns.loreKeys = 1;
+  const before = structuredClone({ accounts: state.accounts, transactions: state.transactions, debts: state.debts, investments: state.investments, goals: state.goals });
+  const revealed = revealRelic(state, "targeted", { eventId: "earned-key" });
+  assert.equal(revealed.checkIns.loreKeys, 0);
+  assert.equal(revealed.collection.reveals.length, 1);
+  assert.equal(revealed.collection.reveals[0].oddsShown, true);
+  assert.deepEqual({ accounts: revealed.accounts, transactions: revealed.transactions, debts: revealed.debts, investments: revealed.investments, goals: revealed.goals }, before);
+});
+
+test("Relic protections guarantee a new fifth reveal and a Mythic by the thirtieth", () => {
+  const state = createEmptyState();
+  state.checkIns.loreKeys = 2;
+  state.collection.ownedItemIds = ["echo-lantern"];
+  state.collection.pullsSinceNew = 4;
+  const fifth = revealRelic(state, "surprise", { setId: "festival-of-echoes", eventId: "fifth-protected" });
+  assert.equal(fifth.collection.reveals[0].duplicate, false);
+  assert.notEqual(fifth.collection.reveals[0].itemId, "echo-lantern");
+  assert.equal(fifth.collection.reveals[0].setId, "festival-of-echoes");
+  fifth.collection.pullsSinceMythic = 29;
+  const thirtieth = revealRelic(fifth, "targeted", { setId: "festival-of-echoes", eventId: "mythic-protected" });
+  assert.equal(thirtieth.collection.reveals[0].rarity, "mythic");
+});
+
+test("Stardust crafting is direct, duplicate-free, and archived seasons remain available", () => {
+  const state = createEmptyState();
+  const item = RELIC_ITEMS.find((candidate) => candidate.id === "vault-bloom")!;
+  state.collection.stardust = item.craftCost;
+  const crafted = revealRelic(state, "crafted", { setId: item.setId, chosenItemId: item.id, eventId: "direct-craft" });
+  assert.ok(crafted.collection.ownedItemIds.includes(item.id));
+  assert.equal(crafted.collection.stardust, 0);
+  assert.equal(crafted.checkIns.loreKeys, 0);
+  assert.throws(() => revealRelic(crafted, "crafted", { setId: item.setId, chosenItemId: item.id, eventId: "duplicate-craft" }), /already/);
+  const archived = archiveSeason(crafted, "deep-vault-bloom");
+  assert.ok(archived.collection.archivedSeasonIds.includes("deep-vault-bloom"));
+  assert.ok(RELIC_ITEMS.some((candidate) => candidate.setId === "deep-vault-bloom"));
 });
