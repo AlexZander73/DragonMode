@@ -136,6 +136,19 @@ export type Wish = {
   finalWorthRating?: WorthRating;
 };
 
+export type Goal = {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  targetDate: string;
+  chamberId: string;
+  priority: "gentle" | "steady" | "focused";
+  status: "active" | "completed" | "paused";
+  visualRelicId: "shield" | "key" | "star" | "gem" | "crown";
+  note: string;
+};
+
 export type InvestmentPosition = {
   id: string;
   accountId: string;
@@ -279,6 +292,8 @@ export type DragonState = {
     fontScale: number;
     tutorialComplete: boolean;
     tutorialChapter: number;
+    onboardingComplete: boolean;
+    dataMode: "demo" | "personal";
     preferredCurrency: string;
     locale: string;
     minimumBuffer: number;
@@ -294,6 +309,7 @@ export type DragonState = {
   quests: Quest[];
   debts: Debt[];
   wishes: Wish[];
+  goals: Goal[];
   investments: InvestmentPosition[];
   pets: Pet[];
   journey: {
@@ -333,7 +349,7 @@ export type DragonState = {
   updatedAt: string;
 };
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export const JOURNEY_AVATARS: JourneyAvatar[] = [
   { id: "asha", name: "Asha Emberwright", role: "Forge-mage", pronouns: "she/her", trait: "Turns small, steady actions into durable tools.", asset: "/journey/avatar-asha-v1.png", color: "#d87a3d" },
@@ -389,6 +405,8 @@ export const createSeedState = (): DragonState => ({
     fontScale: 1,
     tutorialComplete: false,
     tutorialChapter: 0,
+    onboardingComplete: false,
+    dataMode: "demo",
     preferredCurrency: "AUD",
     locale: "en-AU",
     minimumBuffer: 1200,
@@ -450,6 +468,10 @@ export const createSeedState = (): DragonState => ({
   wishes: [
     { id: "w1", name: "Mechanical Keyboard", price: 179, restDays: 3, endsAt: daysFromNow(2), category: "Workshop", desiredDate: daysFromNow(14), fundingSource: "Free Gold", reason: "A quieter, more comfortable writing setup.", status: "resting" },
   ],
+  goals: [
+    { id: "g1", name: "Complete the Deep Vault", targetAmount: 10000, currentAmount: 7850, targetDate: daysFromNow(120), chamberId: "vault", priority: "steady", status: "active", visualRelicId: "shield", note: "A calm emergency buffer for the next unexpected turn." },
+    { id: "g2", name: "Workshop Upgrade", targetAmount: 3000, currentAmount: 2310.45, targetDate: daysFromNow(75), chamberId: "workshop", priority: "gentle", status: "active", visualRelicId: "key", note: "Tools and learning for the next creative chapter." },
+  ],
   investments: [
     { id: "i1", accountId: "a3", name: "Northstar Balanced Fund", type: "fund", units: 104.72, unitPrice: 58.25, contributions: 5400, annualReturnAssumption: 5.5, ticker: "VGS.AX", marketPrice: 58.25, quoteCurrency: "AUD", quoteSource: "manual", lastQuoteAt: daysAgo(1), dividendYield: 2.4, dividendFrequency: "quarterly", nextDividendDate: daysFromNow(31), note: "Long-term diversified holding.", updatedAt: daysAgo(1) },
     { id: "i2", accountId: "a3", name: "Retirement Reserve", type: "retirement", units: 1, unitPrice: 2550, contributions: 2380, annualReturnAssumption: 5, note: "Manually tracked retirement balance.", updatedAt: daysAgo(3) },
@@ -480,7 +502,7 @@ export const createSeedState = (): DragonState => ({
     ],
     idleRewards: [],
     starShards: 84,
-    marketAutoRefresh: true,
+    marketAutoRefresh: false,
     marketRefreshHours: 24,
   },
   projections: {
@@ -506,6 +528,68 @@ export const createSeedState = (): DragonState => ({
   },
   updatedAt: new Date().toISOString(),
 });
+
+export const createEmptyState = (): DragonState => {
+  const seed = createSeedState();
+  return {
+    ...seed,
+    profile: {
+      ...seed.profile,
+      displayName: "Keeper",
+      dataMode: "personal",
+      minimumBuffer: 0,
+      comfortableMonthlyCost: 0,
+      essentialMonthlyCost: 0,
+      lifestyleMonthlyCost: 0,
+    },
+    chambers: seed.chambers.map((chamber) => ({ ...chamber, amount: 0, target: 0 })),
+    accounts: [],
+    transactions: [],
+    subscriptions: [],
+    quests: [],
+    debts: [],
+    wishes: [],
+    goals: [],
+    investments: [],
+    journey: {
+      ...seed.journey,
+      currentNode: 1,
+      snapshots: [],
+      chapters: [],
+      incomeSources: [],
+      idleRewards: [],
+      starShards: 0,
+      marketAutoRefresh: false,
+      lastMarketRefreshAt: undefined,
+    },
+    projections: {
+      rangeMonths: 3,
+      activeScenario: "Current Flight",
+      scenarios: Object.fromEntries(Object.keys(seed.projections.scenarios).map((name) => [name, {
+        expectedMonthlyIncome: 0,
+        essentialSpending: 0,
+        flexibleSpending: 0,
+        subscriptionChange: 0,
+        debtExtraPayment: 0,
+        savingsContribution: 0,
+        investmentContribution: 0,
+        oneOffPurchase: 0,
+      }])),
+    },
+    progression: {
+      level: 1,
+      xp: 0,
+      nextLevelXp: 200,
+      title: "The New Keeper",
+      relics: [],
+      unlockedCosmetics: ["Emerald", "Sky"],
+      completedQuestCount: 0,
+      milestones: [],
+      storyChoices: {},
+    },
+    updatedAt: new Date().toISOString(),
+  };
+};
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -562,6 +646,13 @@ export function normalizeState(input: unknown): DragonState {
     desiredDate: wish.desiredDate ?? wish.endsAt,
     fundingSource: wish.fundingSource ?? "Free Gold",
   })) : seed.wishes;
+  const goals = Array.isArray(source.goals) ? source.goals.map((goal) => ({
+    ...goal,
+    priority: goal.priority ?? "steady" as const,
+    status: goal.status ?? "active" as const,
+    visualRelicId: goal.visualRelicId ?? "star" as const,
+    note: goal.note ?? "A protected goal for the road ahead.",
+  })) : seed.goals;
   const pets = Array.isArray(source.pets) ? source.pets.map((pet, index) => ({
     ...seed.pets[index % seed.pets.length],
     ...pet,
@@ -582,6 +673,8 @@ export function normalizeState(input: unknown): DragonState {
     profile: {
       ...seed.profile,
       ...source.profile,
+      onboardingComplete: source.profile.onboardingComplete ?? source.profile.tutorialComplete ?? false,
+      dataMode: source.profile.dataMode ?? "demo",
       notificationPreferences: { ...seed.profile.notificationPreferences, ...(source.profile.notificationPreferences ?? {}) },
     },
     chambers,
@@ -591,6 +684,7 @@ export function normalizeState(input: unknown): DragonState {
     quests,
     debts,
     wishes,
+    goals,
     pets,
     journey,
     investments: Array.isArray(source.investments) ? source.investments.map((position) => ({

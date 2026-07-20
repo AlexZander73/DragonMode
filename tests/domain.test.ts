@@ -13,7 +13,8 @@ import {
   projectScenario,
   searchTransactions,
 } from "../app/calculations";
-import { createSeedState, normalizeState, SCHEMA_VERSION } from "../app/data";
+import { createEmptyState, createSeedState, normalizeState, SCHEMA_VERSION } from "../app/data";
+import { EXPERIMENTAL_MARKET_DATA } from "../app/constants";
 import { calculateIdleReward, captureFinancialSnapshot, processJourneySession, shouldRefreshMarketData } from "../app/journey";
 
 test("subscription cadences normalize to a monthly planning cost", () => {
@@ -105,7 +106,38 @@ test("search and schema migration retain usable local data", () => {
   assert.equal(migrated.pets.length, 3);
   assert.equal(migrated.journey.selectedAvatarId, "asha");
   assert.equal(migrated.journey.marketRefreshHours, 24);
+  assert.equal(migrated.goals.length, 2);
   assert.deepEqual(migrated.progression.storyChoices, {});
+});
+
+test("personal first-run state is truly empty while keeping the fantasy shell", () => {
+  const state = createEmptyState();
+  assert.equal(state.profile.dataMode, "personal");
+  assert.deepEqual(state.accounts, []);
+  assert.deepEqual(state.transactions, []);
+  assert.deepEqual(state.subscriptions, []);
+  assert.deepEqual(state.debts, []);
+  assert.deepEqual(state.wishes, []);
+  assert.deepEqual(state.goals, []);
+  assert.deepEqual(state.investments, []);
+  assert.ok(state.chambers.length >= 6);
+  assert.ok(state.pets.length >= 3);
+  assert.equal(state.progression.level, 1);
+  assert.equal(state.journey.marketAutoRefresh, false);
+});
+
+test("release configuration keeps experimental market retrieval disabled", () => {
+  assert.equal(EXPERIMENTAL_MARKET_DATA, false);
+  assert.equal(createSeedState().journey.marketAutoRefresh, false);
+});
+
+test("seed goals are editable milestones rather than financial transfers", () => {
+  const state = createSeedState();
+  const before = structuredClone({ accounts: state.accounts, transactions: state.transactions });
+  const goal = state.goals[0];
+  goal.currentAmount += 25;
+  assert.ok(goal.currentAmount < goal.targetAmount);
+  assert.deepEqual({ accounts: state.accounts, transactions: state.transactions }, before);
 });
 
 test("Journey direction follows total assets less debt without punishing small movement", () => {

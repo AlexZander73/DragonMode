@@ -1,6 +1,9 @@
 export const APP_NAME = "Dragon Mode";
 export const APP_TAGLINE = "Protect your hoard. Rest easier.";
 export const NATIVE_MARKET_API_BASE = "https://dragon-mode-hoard.alexanderzmackay.chatgpt.site";
+// Release builds deliberately keep provider-backed market retrieval dormant.
+// Flip this only for an explicitly labelled internal experimental build.
+export const EXPERIMENTAL_MARKET_DATA = false;
 
 export const TAB_LABELS = {
   lair: "Lair",
