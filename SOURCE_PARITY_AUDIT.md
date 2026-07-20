@@ -40,25 +40,43 @@ now advances permanent keeper levels and opens illustrated, choice-based story
 scenes. Both celebration and setback stories resolve with specific, hopeful
 next steps and can be revisited.
 
-The optional Living Atlas campaign is implemented as a functional system, not
-a static mock-up. It records dated financial snapshots, compares total assets
-less mapped debt over a user-selected interval, and opens rising, steady, or
-sheltered routes. Daily, weekly, and pay-cycle story rhythms are supported;
-each generated visual-novel chapter offers a choice and a small, dismissible
-real-world quest. Salary, contract, commission, business, interest, dividend,
-gift, and other income streams have editable cadence and reliability. Internal
-transfers are excluded from story cash-flow context. Setbacks can redirect the
-road but never remove levels, XP, relics, cosmetics, story history, or pet
-bonds.
+The optional Living Atlas campaign is implemented as a functional content
+system, not a static mock-up. It records dated financial snapshots, compares
+total assets less mapped debt over a user-selected interval, and opens rising,
+steady, or sheltered routes. Ten authored, permanent Act I chapters are joined
+by Personal Chronicle pages triggered only by confirmed or user-resolved
+events. Story records its content ID, version, locale, trigger and local fact
+references, supplies a plain accessibility summary and fallback, and can be
+replayed, skipped, or disabled without blocking finance tools. Daily, weekly,
+and pay-cycle rhythms are supported. Internal transfers remain excluded from
+story cash-flow context, and setbacks never remove levels, XP, relics,
+cosmetics, story history, or pet bonds.
 
-The Living Atlas includes a twelve-point illustrated expedition map, six
-selectable fantasy keeper characters, reusable transparent character cutouts,
-three direction-specific full-bleed environments, and a separate Idle Vault.
-Idle rewards estimate savings interest and investment dividends since the last
-open, award display-only Star Shards, and never modify accounts, investment
-units, debt, transactions, or tax records. Savings APY, compounding, promotion
-dates, investment symbols, trailing dividend yields, and dividend cadence are
-editable.
+The Living Atlas includes an illustrated expedition map, six selectable
+fantasy keeper characters, reusable transparent character cutouts, three
+direction-specific full-bleed environments, and a separate Idle Vault. Idle
+Vault uses confirmed balance snapshots and cleared movements, splits at rate
+and promotion boundaries, excludes unknown bonuses, compares posted interest
+separately, and labels dividend yield as a non-spendable illustration. It never
+modifies accounts, investment units, debt, transactions, tax records, XP, or
+collection currency. Legacy Star Shards migrate one-for-one to cosmetic
+Stardust but no new game currency scales with wealth.
+
+Trusted Ledger capture now stages natural one-line entries, pasted bank rows,
+CSV, OFX/QFX, and QIF before any state change. It preserves original rows,
+source identity, occurrence, confidence, lifecycle lineage, mapping settings,
+receipts, and exact undo. Similar movements are grouped for human review but
+never silently deleted based on merchant/date/amount alone. Repeated sources,
+pending-to-posted movements, reused IDs, manual matches, refunds, and paired
+owned-account transfers have domain coverage.
+
+The two-minute Hoard Check, thirteen-source Lore calculator library, declared
+versus linked goal progress, independently configurable private reminders, and
+earned-only Relic Constellations are also implemented. The collection shows
+odds and guarantee counters, offers direct crafting, retains reveal history,
+keeps seasons obtainable through an archive, and has no paid path or financial
+effect. Owned dragon colours and Lair themes can be previewed before applying
+and optionally rotated.
 
 Optional market reference data is isolated behind a server-side Alpha Vantage
 adapter. Only a validated saved symbol is sent to the provider. Refreshes are
@@ -77,27 +95,19 @@ transparent cutouts for reuse and restrained motion.
 
 ## Remaining product-spec gaps
 
-These are functional depth gaps, not missing reference screens:
+These are outside the completed July trust-and-engagement initiative:
 
-- Goals do not yet exist as a first-class create/edit entity separate from
-  chamber targets and resting wishes.
-- The eight tutorial chapters are narrative cards rather than guided tasks that
-  require adding an account, categorising a movement, or logging claimant use.
-- Tutorial naming, keeper-title, dragon-appearance, and story choices are not
-  yet collected as interactive onboarding choices.
-- The saved lair-theme field is not yet exposed as a visual customisation
-  control.
+- Future CDR/Open Banking connectivity still requires a separate legal,
+  privacy, security, consent, and accreditation/intermediary decision. The
+  current release intentionally requests no bank credentials.
 - Wishes use the shared Wish Vault scene; per-wish photo import is not present.
-- Debt “custom order” can be selected but debts cannot yet be reordered.
-- Investment records do not yet expose fee rate, risk label, and cost basis as
-  separate editable fields.
-- Projection controls do not yet expose savings and investment contributions as
-  independent scenario sliders, and there is no arbitrary custom date range.
-- Lore coverage is representative rather than complete for every topic listed
-  in the source document.
-- Notification categories cover claimant, wish, price-change, and review flows;
-  expected-income, duplicate-charge, and story-unlock schedules are not yet
-  independently configurable.
+- Debt “custom order” can be selected but debts cannot yet be drag-reordered.
+- Projection history does not yet offer an arbitrary custom date range.
+- English is the only authored content locale even though currency, number, and
+  date formatting are locale-aware.
+- Real-device accessibility, notification, import-file, migration, and backup
+  certification across the full iOS/Android/web matrix remains a release QA
+  responsibility.
 
 ## Optional inputs that would improve fidelity further
 

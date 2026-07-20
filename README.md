@@ -4,19 +4,20 @@
 
 Dragon Mode is a visual-first fantasy finance mobile MVP. It turns accounts, spending, recurring costs, savings, projections, purchase decisions, debt, and financial maintenance into a bright dragon-hoard adventure without shame or punishment.
 
-## Included MVP
+## Included product
 
-- Ten navigable reference areas across one consistent five-tab mobile bar.
-- Seeded demo hoard with chambers, accounts, transactions, claimants, debts, investments, quests, resting wishes, progression, and relics.
-- Full add/edit/archive/delete flows for chambers, transactions, accounts, subscriptions, debts, wishes, and manually tracked investments.
-- IndexedDB persistence with JSON import/export and demo reset.
-- Billing-period subscription usage, weekly through annual cadences, reminders, price history, and cost-per-use calculations.
-- Rules-driven unusual, duplicate, categorisation, subscription, buffer, debt, and projection quests with permanent XP progression.
-- Live cash-flow analytics, hibernation modes, six-month trends, and editable multi-path projections.
-- Debt strategy comparison and next-victory milestones.
-- Eight-chapter skippable tutorial plus reduced-motion, Dynamic Type scaling, sound, haptics, actionable reminders, plain-language mode, currency, and locale settings.
-- Branded install icons, launch screens, PWA metadata, and synced native iOS/Android projects.
-- Cloudflare-compatible Sites build for private hosted previews.
+- A local-first, no-account financial tracker with one consistent five-tab mobile navigation system.
+- Trusted Ledger capture for natural one-line entries, pasted bank rows, CSV, OFX/QFX, and QIF, with staged preview, field confidence, saved mappings, readable cleanup rules, provenance, and defensive file limits.
+- Duplicate, pending-to-posted, refund, reused-ID, and owned-account transfer handling that never removes similar movements without the user’s confirmation.
+- Reconciliation status, mapped-through dates, visible differences, receipts, original source rows, and exact batch undo.
+- A calm daily/weekly/pay-cycle/monthly Hoard Check with at most one daily review, fixed stewardship rewards, no punitive streak, and no wealth-scaled progression.
+- Dated Idle Vault interest illustrations split across confirmed balance, rate, promotion, and bonus-condition periods; posted interest is compared separately and dividend yield never appears as spendable cash.
+- Thirteen auto-filled Lore calculators covering near-term cash flow, goals, buffers, debt, term deposits, recurring costs, Wishes, compounding, loan-rate changes, projections, and fee drag. Every tool shows inputs, sources, assumptions, exclusions, an official source, and the non-advice boundary.
+- Ten permanent Living Atlas Act I chapters, event-driven Personal Chronicle pages, replay/skip/plain-summary controls, six keepers, and optional non-punitive story rhythms.
+- Earned-only Relic Constellations with visible odds, fifth-reveal new-item protection, twelfth-reveal choice, Mythic ceiling, Stardust crafting, full reveal history, and permanent seasonal archives. There is no purchase path and cosmetics affect no financial outcome.
+- Declared versus transaction-linked goal progress, idempotent XP events, permanent levels/relics/pet bonds, previewable owned skins, and optional weekly rotation.
+- Independently configurable, actionable local reminders with quiet hours and generic notification text that excludes financial details.
+- IndexedDB persistence, schema-v8 migration, complete JSON backup/restore, demo reset, and branded PWA/iOS/Android shells.
 
 ## Navigation
 

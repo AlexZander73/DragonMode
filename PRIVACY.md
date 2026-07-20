@@ -1,17 +1,24 @@
 # Dragon Mode privacy summary
 
-Dragon Mode 1.0 is a local-first, manual-entry finance app.
+Dragon Mode 1.0 is a local-first financial tracking app with manual, pasted, and user-chosen file import.
 
 ## Release data behaviour
 
 - No Dragon Mode account is required.
 - No bank, brokerage, or merchant login is requested.
 - Financial records are stored in the app's on-device IndexedDB vault.
+- Pasted text and CSV/OFX/QFX/QIF files are read only after a user action. The original staged source rows, parser settings, import receipts, reconciliation history, and locally saved rules remain in the device vault for provenance and undo.
+- Import is defensively limited to 5 MB and 10,000 source lines per batch.
 - Market retrieval is disabled, so the release app makes no market-data calls.
 - Notifications are optional, sparse, and requested only after the user enables
-  them.
+  them. Their bodies use generic wording and do not include balances, amounts,
+  merchants, account names, or imported source text.
 - JSON export happens only after the user taps Export.
-- JSON import reads only the file the user explicitly chooses.
+- JSON export covers the complete vault, including imports, reconciliation,
+  rules, education, story, and cosmetic history. JSON import reads only the file
+  the user explicitly chooses.
+- Restore demo, Start empty, and app deletion cover the new import and collection
+  records along with existing finance records.
 - Deleting the app may delete the local vault; users should export before
   changing devices.
 
@@ -30,4 +37,7 @@ enabled.
 
 Dragon Mode provides organization, reflection, and editable estimates. It does
 not place trades, recommend financial products, file taxes, calculate credit
-scores, or replace statements and professional advice.
+scores, or replace statements and professional advice. Estimated interest and
+dividends never alter balances, transactions, cash flow, debt, investment units,
+or tax records. Randomized cosmetics are never sold and provide no financial
+advantage.
