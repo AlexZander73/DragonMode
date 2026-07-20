@@ -1,4 +1,5 @@
 import type { Debt, DragonState, Pet, PetCadence, ProjectionScenario, Quest, Subscription, SubscriptionCadence, Transaction } from "./data";
+import { journeyQuest } from "./journey";
 
 const DAY_MS = 86_400_000;
 
@@ -167,6 +168,9 @@ export function getActiveQuests(state: DragonState): Quest[] {
     const historical = stored.find((item) => item.id === candidate.id);
     if (!historical) stored.push(candidate);
   };
+
+  const livingQuest = journeyQuest(state);
+  if (livingQuest) ensure(livingQuest);
 
   state.transactions.filter((item) => item.unusual && !item.reviewedAt).forEach((transaction) => ensure(generatedQuest({
     id: `q-unusual-${transaction.id}`,

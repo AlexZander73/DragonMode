@@ -1,5 +1,6 @@
 export const APP_NAME = "Dragon Mode";
 export const APP_TAGLINE = "Protect your hoard. Rest easier.";
+export const NATIVE_MARKET_API_BASE = "https://dragon-mode-hoard.alexanderzmackay.chatgpt.site";
 
 export const TAB_LABELS = {
   lair: "Lair",

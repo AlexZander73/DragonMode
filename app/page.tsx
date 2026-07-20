@@ -5,6 +5,8 @@ import {
   BarChart3,
   Bell,
   CalendarDays,
+  Clock,
+  CloudSun,
   BookOpen,
   Car,
   Check,
@@ -30,6 +32,8 @@ import {
   PawPrint,
   Plus,
   RotateCcw,
+  Route,
+  RefreshCw,
   Save,
   Search,
   ScrollText,
@@ -45,13 +49,14 @@ import {
   TrendingUp,
   Trophy,
   Upload,
+  UserRound,
   Volume2,
   WalletCards,
   X,
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addProgressionXp,
   averageApr,
@@ -74,12 +79,13 @@ import {
   subscriptionCostPerUse,
   totalDebt,
 } from "./calculations";
-import { APP_NAME, APP_TAGLINE, configureFormatting, formatCompactGold, formatGold, formatShortDate as formatDate, type MainTab } from "./constants";
-import { createSeedState, normalizeState, type DragonState, type InvestmentPosition, type Pet, type Quest, type Subscription, type WorthRating } from "./data";
+import { APP_NAME, APP_TAGLINE, NATIVE_MARKET_API_BASE, configureFormatting, formatCompactGold, formatGold, formatShortDate as formatDate, type MainTab } from "./constants";
+import { createSeedState, JOURNEY_AVATARS, normalizeState, type DragonState, type IncomeCadence, type IncomeKind, type InvestmentPosition, type Pet, type Quest, type Subscription, type WorthRating } from "./data";
+import { latestJourneyChapter, processJourneySession, selectedJourneyAvatar, shouldRefreshMarketData } from "./journey";
 import { notificationPermission, playFeedback, scheduleClaimantReminder, scheduleWishReminder, setupNotificationActions } from "./native";
 import { clearState, loadState, saveState } from "./storage";
 
-type Screen = "lair" | "pets" | "hoard" | "quests" | "analytics" | "tribute" | "flight" | "wish" | "dragon" | "debt" | "investments" | "legacy" | "settings";
+type Screen = "lair" | "pets" | "journey" | "roster" | "idle" | "hoard" | "quests" | "analytics" | "tribute" | "flight" | "wish" | "dragon" | "debt" | "investments" | "legacy" | "settings";
 type Sheet = { type: string; id?: string; title?: string; body?: string } | null;
 
 const ICONS: Record<string, LucideIcon> = {
@@ -111,6 +117,9 @@ const screenTab: Record<Screen, MainTab> = {
   pets: "lair",
   dragon: "lair",
   legacy: "lair",
+  journey: "lair",
+  roster: "lair",
+  idle: "lair",
   hoard: "hoard",
   quests: "quests",
   wish: "quests",
@@ -147,19 +156,59 @@ export default function DragonModeApp() {
   const [tutorialStep, setTutorialStep] = useState(0);
   const mainRef = useRef<HTMLElement>(null);
   const scrollPositions = useRef<Partial<Record<Screen, number>>>({});
+  const marketRefreshStarted = useRef(false);
   configureFormatting(state.profile.preferredCurrency, state.profile.locale);
 
   useEffect(() => {
     loadState()
       .then((saved) => {
-        if (saved) {
-          setState(saved);
-          setTutorialStep(saved.profile.tutorialChapter ?? 0);
-        }
+        const nextState = processJourneySession(saved ?? createSeedState());
+        setState(nextState);
+        setTutorialStep(nextState.profile.tutorialChapter ?? 0);
       })
       .catch(() => undefined)
       .finally(() => setReady(true));
   }, []);
+
+  const refreshMarketQuote = useCallback(async (positionId: string, silent = false) => {
+    const position = state.investments.find((item) => item.id === positionId);
+    if (!position?.ticker) {
+      if (!silent) setToast("Add a market symbol before refreshing");
+      return false;
+    }
+    try {
+      const apiBase = window.location.protocol.startsWith("http") ? "" : NATIVE_MARKET_API_BASE;
+      const response = await fetch(`${apiBase}/api/market/quote?symbol=${encodeURIComponent(position.ticker)}`);
+      const payload = await response.json() as { price?: number; dividendYield?: number; nextDividendDate?: string | null; refreshedAt?: string; provider?: string; error?: string };
+      if (!response.ok || !payload.price) throw new Error(payload.error ?? "No verified quote returned");
+      setState((previous) => ({
+        ...previous,
+        investments: previous.investments.map((item) => item.id === positionId ? {
+          ...item,
+          unitPrice: payload.price ?? item.unitPrice,
+          marketPrice: payload.price ?? item.marketPrice,
+          dividendYield: payload.dividendYield || item.dividendYield,
+          nextDividendDate: payload.nextDividendDate || item.nextDividendDate,
+          quoteSource: "alpha-vantage" as const,
+          lastQuoteAt: payload.refreshedAt ?? new Date().toISOString(),
+          updatedAt: payload.refreshedAt ?? new Date().toISOString(),
+        } : item),
+        journey: { ...previous.journey, lastMarketRefreshAt: new Date().toISOString() },
+      }));
+      if (!silent) setToast(`${position.ticker} refreshed from ${payload.provider ?? "verified market data"}`);
+      return true;
+    } catch (error) {
+      if (!silent) setToast(error instanceof Error ? error.message : "Saved value kept; refresh unavailable");
+      return false;
+    }
+  }, [state.investments]);
+
+  useEffect(() => {
+    if (!ready || marketRefreshStarted.current || !state.journey.marketAutoRefresh) return;
+    marketRefreshStarted.current = true;
+    const stale = state.investments.filter((item) => item.ticker && shouldRefreshMarketData(item.lastQuoteAt, state.journey.marketRefreshHours));
+    stale.reduce((chain, item) => chain.then(() => refreshMarketQuote(item.id, true).then(() => undefined)), Promise.resolve()).catch(() => undefined);
+  }, [ready, refreshMarketQuote, state.investments, state.journey.marketAutoRefresh, state.journey.marketRefreshHours]);
 
   useEffect(() => {
     document.documentElement.lang = state.profile.locale;
@@ -227,6 +276,7 @@ export default function DragonModeApp() {
       quests: previous.quests.some((item) => item.id === quest.id)
         ? previous.quests.map((item) => (item.id === quest.id ? { ...item, completed: true, completedAt: new Date().toISOString() } : item))
         : [...previous.quests, { ...quest, completed: true, completedAt: new Date().toISOString() }],
+      journey: quest.relatedEntityId?.startsWith("journey-") ? { ...previous.journey, chapters: previous.journey.chapters.map((chapter) => chapter.id === quest.relatedEntityId ? { ...chapter, goalCompletedAt: new Date().toISOString() } : chapter) } : previous.journey,
       progression: { ...addProgressionXp(previous, quest.xp, `quest-${quest.id}`), completedQuestCount: previous.progression.completedQuestCount + 1 },
     }));
     playFeedback({ sound: state.profile.soundEnabled, haptics: state.profile.hapticsEnabled, kind: "success" }).catch(() => undefined);
@@ -277,6 +327,9 @@ export default function DragonModeApp() {
           {state.profile.plainLanguage && <PlainLanguageBar screen={screen} />}
           {screen === "lair" && <LairScreen state={state} summary={summary} navigate={navigate} setSheet={setSheet} />}
           {screen === "pets" && <PetsScreen state={state} navigate={navigate} updateState={updateState} setToast={setToast} />}
+          {screen === "journey" && <JourneyScreen state={state} navigate={navigate} updateState={updateState} setSheet={setSheet} setToast={setToast} />}
+          {screen === "roster" && <RosterScreen state={state} navigate={navigate} updateState={updateState} setToast={setToast} />}
+          {screen === "idle" && <IdleVaultScreen state={state} navigate={navigate} updateState={updateState} setToast={setToast} />}
           {screen === "hoard" && <HoardScreen state={state} summary={summary} setSheet={setSheet} />}
           {screen === "quests" && <QuestScreen state={state} completeQuest={completeQuest} navigate={navigate} updateState={updateState} setToast={setToast} setSheet={setSheet} />}
           {screen === "analytics" && <AnalyticsScreen state={state} navigate={navigate} setSheet={setSheet} />}
@@ -285,7 +338,7 @@ export default function DragonModeApp() {
           {screen === "wish" && <WishScreen state={state} navigate={navigate} updateState={updateState} summary={summary} setToast={setToast} setSheet={setSheet} />}
           {screen === "dragon" && <DragonScreen state={state} navigate={navigate} updateState={updateState} setToast={setToast} />}
           {screen === "debt" && <DebtScreen state={state} navigate={navigate} setSheet={setSheet} updateState={updateState} setToast={setToast} />}
-          {screen === "investments" && <InvestmentsScreen state={state} navigate={navigate} updateState={updateState} setSheet={setSheet} setToast={setToast} />}
+          {screen === "investments" && <InvestmentsScreen state={state} navigate={navigate} updateState={updateState} setSheet={setSheet} setToast={setToast} refreshMarketQuote={refreshMarketQuote} />}
           {screen === "legacy" && <LegacyScreen state={state} navigate={navigate} setSheet={setSheet} />}
           {screen === "settings" && <SettingsScreen state={state} navigate={navigate} updateState={updateState} setToast={setToast} setSheet={setSheet} />}
           <div className="scroll-spacer" />
@@ -337,6 +390,9 @@ function PlainLanguageBar({ screen }: { screen: Screen }) {
   const labels: Record<Screen, string> = {
     lair: "Home · your current financial snapshot",
     pets: "Pets · gentle daily, weekly, and monthly care",
+    journey: "Journey · an optional story shaped by recent financial direction",
+    roster: "Character roster · choose who represents you on the Journey",
+    idle: "Idle vault · estimated earnings and non-financial rewards since your last visit",
     hoard: "Money · accounts, balances and transactions",
     quests: "Actions · optional financial tasks",
     analytics: "Insights · spending, income and trends",
@@ -364,13 +420,16 @@ function LairScreen({ state, summary, navigate, setSheet }: { state: DragonState
   ];
   const selectedPet = state.pets.find((pet) => pet.id === state.profile.selectedPetId) ?? state.pets[0];
   const selectedPetStatus = selectedPet ? petCareStatus(selectedPet) : null;
+  const journeyChapter = latestJourneyChapter(state);
+  const journeyAvatar = selectedJourneyAvatar(state);
+  const unclaimedShards = state.journey.idleRewards.filter((item) => !item.claimedAt).reduce((sum, item) => sum + item.starShards, 0);
   return (
     <section className="screen screen-lair">
       <ScreenHeader
         icon={Home}
         title="The Lair"
         subtitle={APP_TAGLINE}
-        action={<button type="button" className="level-badge" onClick={() => navigate("legacy")} aria-label="Open Dragon's Legacy"><Crown size={16} /> LV {state.progression.level}</button>}
+        action={<button type="button" className="level-badge" onClick={() => navigate("journey")} aria-label="Open the Living Atlas"><Map size={16} /> LV {state.progression.level}</button>}
       />
       <button className="safety-banner" type="button" onClick={() => navigate("dragon")}> 
         <ShieldCheck size={24} />
@@ -403,6 +462,12 @@ function LairScreen({ state, summary, navigate, setSheet }: { state: DragonState
         <strong>{formatGold(summary.freeGold)}</strong>
         <small>After near-term commitments and your protected buffer</small>
       </section>
+      <button className={`journey-portal route-${journeyChapter?.direction ?? "steady"}`} type="button" onClick={() => navigate("journey")}>
+        <span className="journey-portal-map" aria-hidden="true" />
+        <span className="journey-portal-avatar" style={{ "--journey-avatar": `url("${journeyAvatar.asset}")` } as React.CSSProperties} aria-hidden="true" />
+        <span><small>Optional living story · {journeyChapter?.direction ?? "steady"} path</small><strong>{journeyChapter?.title ?? "The atlas is waking"}</strong><em>{unclaimedShards ? `${unclaimedShards} Star Shards waiting` : "A useful chapter is ready"}</em></span>
+        <ChevronRight size={20} />
+      </button>
       {selectedPet && selectedPetStatus && (
         <button className={`pet-portal ${selectedPetStatus.due ? "pet-due" : ""}`} type="button" onClick={() => navigate("pets")}>
           <span className="pet-portal-art" style={{ "--pet-image": `url("${selectedPet.asset}")` } as React.CSSProperties} aria-hidden="true" />
@@ -477,6 +542,82 @@ function PetsScreen({ state, navigate, updateState, setToast }: { state: DragonS
       <section className="care-promise"><ShieldCheck size={25} /><span><strong>The Keeper&apos;s Promise</strong><p>Busy days do not hurt your companions. They wait without judgment, welcome you back, and every bond you earn remains yours.</p></span></section>
     </section>
   );
+}
+
+const JOURNEY_NODE_POSITIONS = [
+  { left: 47, bottom: 5 }, { left: 34, bottom: 15 }, { left: 57, bottom: 25 }, { left: 72, bottom: 35 },
+  { left: 53, bottom: 45 }, { left: 30, bottom: 54 }, { left: 42, bottom: 64 }, { left: 66, bottom: 73 },
+  { left: 54, bottom: 78 }, { left: 72, bottom: 83 }, { left: 49, bottom: 87 }, { left: 63, bottom: 85 },
+];
+
+function JourneyScreen({ state, navigate, updateState, setSheet, setToast }: { state: DragonState; navigate: (screen: Screen) => void; updateState: (updater: (state: DragonState) => DragonState) => void; setSheet: (sheet: Sheet) => void; setToast: (toast: string) => void }) {
+  const chapter = latestJourneyChapter(state);
+  const avatar = selectedJourneyAvatar(state);
+  const latestSnapshot = state.journey.snapshots.at(-1);
+  const chronologicalChapters = [...state.journey.chapters].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  const recentChapters = chronologicalChapters.slice(-12);
+  const unclaimed = state.journey.idleRewards.filter((item) => !item.claimedAt).reduce((sum, item) => sum + item.starShards, 0);
+  const directionMeta = chapter?.direction === "rising"
+    ? { label: "Rising road", icon: TrendingUp, body: "Overall assets less debt moved meaningfully upward.", color: "#4fc67a" }
+    : chapter?.direction === "sheltered"
+      ? { label: "Sheltered road", icon: ShieldCheck, body: "The recent direction softened. The atlas offers protection, not punishment.", color: "#7c91e6" }
+      : { label: "Steady road", icon: CloudSun, body: "The hoard stayed inside its calm comparison range.", color: "#e7b85d" };
+  const DirectionIcon = directionMeta.icon;
+  const updateIncome = (id: string, changes: Partial<DragonState["journey"]["incomeSources"][number]>) => updateState((previous) => ({ ...previous, journey: { ...previous.journey, incomeSources: previous.journey.incomeSources.map((item) => item.id === id ? { ...item, ...changes } : item) } }));
+  return (
+    <section className="screen screen-journey">
+      <ScreenHeader icon={Map} title="The Living Atlas" subtitle="An optional story shaped by real life" back={() => navigate("lair")} action={<button type="button" className="shard-chip" onClick={() => navigate("idle")}><Gem size={14} /> {state.journey.starShards + unclaimed}</button>} />
+      <section className="journey-status" style={{ "--route-color": directionMeta.color } as React.CSSProperties}>
+        <span className="journey-status-avatar" style={{ "--journey-avatar": `url("${avatar.asset}")` } as React.CSSProperties} aria-hidden="true" />
+        <div><small>Today · {directionMeta.label}</small><strong>{chapter?.title ?? "A quiet page"}</strong><p>{directionMeta.body}</p><span><DirectionIcon size={16} /> {latestSnapshot ? `${latestSnapshot.change >= 0 ? "+" : "−"}${formatGold(Math.abs(latestSnapshot.change), 0)} since the previous snapshot` : "First snapshot recorded"}</span></div>
+      </section>
+      <section className="atlas-map" aria-label="Living Atlas level map">
+        <div className="atlas-map-title"><small>Current expedition</small><strong>Road to the Emerald Citadel</strong><span>{state.journey.currentNode + 1} / 12</span></div>
+        <div className="atlas-route" aria-hidden="true" />
+        {JOURNEY_NODE_POSITIONS.map((position, index) => {
+          const relativeIndex = recentChapters.length - (state.journey.currentNode - index) - 1;
+          const nodeChapter = recentChapters[relativeIndex];
+          const completed = index < state.journey.currentNode;
+          const current = index === state.journey.currentNode;
+          return <button
+            key={index}
+            type="button"
+            className={`atlas-node ${completed ? "completed" : ""} ${current ? "current" : ""} ${nodeChapter ? `route-${nodeChapter.direction}` : "future"}`}
+            style={{ left: `${position.left}%`, bottom: `${position.bottom}%` }}
+            aria-label={nodeChapter ? `Open ${nodeChapter.title}` : current ? "Today's atlas point" : completed ? `Completed atlas point ${index + 1}` : `Future atlas point ${index + 1}`}
+            onClick={() => nodeChapter ? setSheet({ type: "journey-story", id: nodeChapter.id, title: nodeChapter.title }) : setSheet({ type: "story", title: current ? "Today’s point" : "A future path", body: current ? "Today’s financial snapshot placed the party here. Open the chapter below to choose how to travel onward." : "This point opens with time and check-ins—not with a required balance." })}
+          >{completed ? <Check size={15} /> : current ? <Route size={16} /> : <span>{index + 1}</span>}</button>;
+        })}
+        <span className="atlas-avatar-marker" style={{ left: `${JOURNEY_NODE_POSITIONS[state.journey.currentNode]?.left ?? 50}%`, bottom: `${JOURNEY_NODE_POSITIONS[state.journey.currentNode]?.bottom ?? 5}%`, "--journey-avatar": `url("${avatar.asset}")` } as React.CSSProperties} aria-hidden="true" />
+      </section>
+      {chapter && <button className={`today-chapter route-${chapter.direction}`} type="button" onClick={() => setSheet({ type: "journey-story", id: chapter.id, title: chapter.title })}><span className="chapter-scene" /><span><small>Today’s visual chapter</small><strong>{chapter.title}</strong><p>{chapter.selectedChoice ? chapter.ending : chapter.opening}</p><em>{chapter.selectedChoice ? `Choice carried: ${chapter.selectedChoice}` : "Choose how your keeper responds"}</em></span><ChevronRight size={20} /></button>}
+      {chapter && <section className="journey-goal"><Target size={23} /><div><small>Suggested next step · optional</small><strong>{chapter.actionTitle}</strong><p>{chapter.actionDescription}</p></div>{chapter.goalCompletedAt ? <span className="goal-done"><Check size={17} /> Done</span> : <button type="button" onClick={() => navigate("quests")}>Open quest</button>}</section>}
+      <div className="journey-tools"><button type="button" onClick={() => navigate("roster")}><span className="tool-avatar" style={{ "--journey-avatar": `url("${avatar.asset}")` } as React.CSSProperties} /><b>Choose keeper</b><small>{avatar.name}</small></button><button type="button" onClick={() => navigate("idle")}><Gem size={26} /><b>Idle vault</b><small>{unclaimed ? `${unclaimed} shards waiting` : "Earnings estimates"}</small></button><button type="button" onClick={() => navigate("legacy")}><Crown size={26} /><b>Permanent legacy</b><small>Levels never decrease</small></button></div>
+      <section className="income-ledger"><SectionTitle title="Income routes" /><p>Classify each stream so chapters understand regular pay, variable contracts, commissions, interest, and dividends without treating estimates as guarantees.</p>{state.journey.incomeSources.map((source) => <article key={source.id}><div><Coins size={18} /><span><strong>{source.name}</strong><small>{formatGold(source.expectedAmount)} expected · {source.lastSeenAt ? `seen ${formatDate(source.lastSeenAt)}` : "planned"}</small></span></div><div className="income-controls"><select aria-label={`${source.name} income type`} value={source.kind} onChange={(event) => updateIncome(source.id, { kind: event.target.value as IncomeKind })}>{(["salary", "contract", "commission", "business", "interest", "dividend", "gift", "other"] as IncomeKind[]).map((kind) => <option key={kind}>{kind}</option>)}</select><select aria-label={`${source.name} cadence`} value={source.cadence} onChange={(event) => updateIncome(source.id, { cadence: event.target.value as IncomeCadence })}>{(["weekly", "fortnightly", "monthly", "quarterly", "annual", "irregular"] as IncomeCadence[]).map((cadence) => <option key={cadence}>{cadence}</option>)}</select><select aria-label={`${source.name} reliability`} value={source.reliability} onChange={(event) => updateIncome(source.id, { reliability: event.target.value as typeof source.reliability })}><option>steady</option><option>variable</option><option>seasonal</option></select></div></article>)}</section>
+      <section className="journey-settings"><SectionTitle title="Story rhythm" /><label className="check-label"><input type="checkbox" checked={state.journey.enabled} onChange={(event) => { const enabled = event.target.checked; updateState((previous) => ({ ...previous, journey: { ...previous.journey, enabled } })); setToast(enabled ? "Living Atlas chapters enabled" : "Journey paused; all progress kept"); }} /> Enable optional Journey chapters</label><label>Chapter rhythm<select value={state.journey.cadence} onChange={(event) => updateState((previous) => ({ ...previous, journey: { ...previous.journey, cadence: event.target.value as DragonState["journey"]["cadence"] } }))}><option value="daily">Daily check-in</option><option value="weekly">Weekly reflection</option><option value="pay-cycle">Pay-cycle or fortnightly</option></select></label><label>Compare with<select value={state.journey.comparisonDays} onChange={(event) => updateState((previous) => ({ ...previous, journey: { ...previous.journey, comparisonDays: Number(event.target.value) } }))}><option value="1">Previous day</option><option value="7">About one week ago</option><option value="14">About a pay cycle ago</option><option value="30">About one month ago</option></select></label><label>Steady range <b>{state.journey.stabilityPercent.toFixed(2)}%</b><input type="range" min="0.1" max="2" step="0.05" value={state.journey.stabilityPercent} onChange={(event) => updateState((previous) => ({ ...previous, journey: { ...previous.journey, stabilityPercent: Number(event.target.value) } }))} /></label><p>At most one chapter can be created per day. Pay-cycle mode also reacts to newly recorded income and otherwise checks in after fourteen days. A changing route never removes XP, titles, relics, cosmetics, or pet bonds.</p></section>
+    </section>
+  );
+}
+
+function RosterScreen({ state, navigate, updateState, setToast }: { state: DragonState; navigate: (screen: Screen) => void; updateState: (updater: (state: DragonState) => DragonState) => void; setToast: (toast: string) => void }) {
+  const selected = selectedJourneyAvatar(state);
+  return <section className="screen screen-roster"><ScreenHeader icon={UserRound} title="Keeper Roster" subtitle="Choose who represents you" back={() => navigate("journey")} /><section className="roster-hero" style={{ "--avatar-color": selected.color } as React.CSSProperties}><span className="roster-hero-character" style={{ "--journey-avatar": `url("${selected.asset}")` } as React.CSSProperties} /><div><small>{selected.pronouns} · {selected.role}</small><strong>{selected.name}</strong><p>{selected.trait}</p><em>Changing keeper never changes financial data or progress.</em></div></section><div className="roster-grid">{JOURNEY_AVATARS.map((avatar) => <button type="button" key={avatar.id} className={selected.id === avatar.id ? "selected" : ""} style={{ "--avatar-color": avatar.color } as React.CSSProperties} onClick={() => { updateState((previous) => ({ ...previous, journey: { ...previous.journey, selectedAvatarId: avatar.id } })); setToast(`${avatar.name} joined the Journey`); }}><span style={{ "--journey-avatar": `url("${avatar.asset}")` } as React.CSSProperties} /><small>{avatar.role}</small><strong>{avatar.name.split(" ")[0]}</strong>{selected.id === avatar.id && <i><Check size={14} /></i>}</button>)}</div><p className="supportive-copy">The roster offers different perspectives, not financial advantages. Every keeper follows the same respectful, non-punitive rules.</p></section>;
+}
+
+function IdleVaultScreen({ state, navigate, updateState, setToast }: { state: DragonState; navigate: (screen: Screen) => void; updateState: (updater: (state: DragonState) => DragonState) => void; setToast: (toast: string) => void }) {
+  const rewards = state.journey.idleRewards;
+  const unclaimed = rewards.filter((item) => !item.claimedAt);
+  const unclaimedShards = unclaimed.reduce((sum, item) => sum + item.starShards, 0);
+  const unclaimedValue = unclaimed.reduce((sum, item) => sum + item.total, 0);
+  const totalEstimated = rewards.reduce((sum, item) => sum + item.total, 0);
+  const avatar = selectedJourneyAvatar(state);
+  const collect = () => {
+    if (!unclaimed.length) return;
+    updateState((previous) => ({ ...previous, journey: { ...previous.journey, starShards: previous.journey.starShards + unclaimedShards, idleRewards: previous.journey.idleRewards.map((item) => item.claimedAt ? item : { ...item, claimedAt: new Date().toISOString() }) }, progression: addProgressionXp(previous, 4, `idle-${new Date().toISOString().slice(0, 10)}`) }));
+    setToast(`${unclaimedShards} Star Shards collected · real balances unchanged`);
+  };
+  const collection = [{ at: 100, name: "Lantern of Return", icon: Flame }, { at: 250, name: "Silver Trail", icon: Route }, { at: 500, name: "Vault Aurora", icon: Sparkles }];
+  return <section className="screen screen-idle"><ScreenHeader icon={Gem} title="Idle Vault" subtitle="What may have grown while you were away" back={() => navigate("journey")} action={<span className="shard-chip"><Gem size={14} /> {state.journey.starShards}</span>} /><section className="idle-hero"><span className="idle-character" style={{ "--journey-avatar": `url("${avatar.asset}")` } as React.CSSProperties} /><div><small>Estimated treasure gathered</small><strong>{formatGold(unclaimedValue)}</strong><p>{unclaimedShards ? `${unclaimedShards} Star Shards are ready to collect.` : "The vault is quietly watching eligible yields."}</p><button type="button" disabled={!unclaimed.length} onClick={collect}><Gem size={17} /> {unclaimed.length ? "Collect display rewards" : "Nothing waiting yet"}</button></div></section><aside className="estimate-guard"><ShieldCheck size={21} /><p><strong>Display estimate only.</strong> Idle rewards never alter balances, transactions, debt, investment units, or tax records. Confirm real interest and dividends from an actual statement or transaction.</p></aside><div className="idle-summary"><div><span>All-time estimate</span><strong>{formatGold(totalEstimated)}</strong></div><div><span>Yield sources</span><strong>{rewards.flatMap((item) => item.sources).length}</strong></div><div><span>Refresh rhythm</span><strong>{state.journey.marketRefreshHours}h</strong></div></div><SectionTitle title="Return chests" />{rewards.length ? <div className="reward-list">{rewards.slice(0, 8).map((reward) => <article key={reward.id} className={reward.claimedAt ? "claimed" : "ready"}><span className="reward-gem"><Gem size={21} /></span><div><small>{formatDate(reward.from)} → {formatDate(reward.to)}</small><strong>{formatGold(reward.total)} estimated · {reward.starShards} shards</strong>{reward.sources.map((source) => <p key={source.id}><span>{source.kind === "interest" ? "Interest" : "Dividend"} · {source.label}</span><b>{formatGold(source.amount)}</b></p>)}</div><em>{reward.claimedAt ? "Collected" : "Ready"}</em></article>)}</div> : <div className="empty-state"><Clock size={34} /><strong>The vault has just begun watching.</strong><p>Add an APY to a savings account or a dividend yield to an investment, then return later.</p></div>}<SectionTitle title="Collection shelf" /><div className="collection-shelf">{collection.map((item) => { const Icon = item.icon; const unlocked = state.journey.starShards >= item.at; return <div key={item.name} className={unlocked ? "unlocked" : "locked"}><span><Icon size={22} /></span><strong>{item.name}</strong><small>{unlocked ? "Unlocked permanently" : `${item.at - state.journey.starShards} shards to go`}</small></div>; })}</div><section className="idle-source-notes"><SectionTitle title="How estimates work" /><p>Savings use the entered APY, compounding frequency, and promotional start/end dates. Investments use mapped units, the last confirmed price, and the entered trailing dividend yield. Time away is capped at one year per calculation.</p><button type="button" className="secondary-button full" onClick={() => navigate("hoard")}><Landmark size={17} /> Review account rates</button><button type="button" className="secondary-button full" onClick={() => navigate("investments")}><Sprout size={17} /> Review dividends and quotes</button></section></section>;
 }
 
 function HoardScreen({ state, summary, setSheet }: { state: DragonState; summary: ReturnType<typeof getHoardSummary>; setSheet: (sheet: Sheet) => void }) {
@@ -665,24 +806,25 @@ function TributeScreen({ state, navigate, setSheet, logUse }: { state: DragonSta
   );
 }
 
-function InvestmentsScreen({ state, navigate, updateState, setSheet, setToast }: { state: DragonState; navigate: (screen: Screen) => void; updateState: (updater: (state: DragonState) => DragonState) => void; setSheet: (sheet: Sheet) => void; setToast: (toast: string) => void }) {
-  const totalValue = state.investments.reduce((sum, position) => sum + position.units * position.unitPrice, 0);
+function InvestmentsScreen({ state, navigate, updateState, setSheet, setToast, refreshMarketQuote }: { state: DragonState; navigate: (screen: Screen) => void; updateState: (updater: (state: DragonState) => DragonState) => void; setSheet: (sheet: Sheet) => void; setToast: (toast: string) => void; refreshMarketQuote: (positionId: string, silent?: boolean) => Promise<boolean> }) {
+  const totalValue = state.investments.reduce((sum, position) => sum + position.units * (position.marketPrice ?? position.unitPrice), 0);
   const contributions = state.investments.reduce((sum, position) => sum + position.contributions, 0);
   const growth = totalValue - contributions;
-  const weightedReturn = state.investments.length ? state.investments.reduce((sum, position) => sum + position.annualReturnAssumption * position.units * position.unitPrice, 0) / Math.max(1, totalValue) : 0;
+  const weightedReturn = state.investments.length ? state.investments.reduce((sum, position) => sum + position.annualReturnAssumption * position.units * (position.marketPrice ?? position.unitPrice), 0) / Math.max(1, totalValue) : 0;
   return (
     <section className="screen screen-treasury screen-investments">
-      <ScreenHeader icon={Sprout} title="Long Sleep" subtitle="Manually tracked investments" action={<button className="icon-button" type="button" onClick={() => setSheet({ type: "add-investment", title: "Add a sleeping treasure" })} aria-label="Add investment"><Plus size={21} /></button>} />
+      <ScreenHeader icon={Sprout} title="Long Sleep" subtitle="Tracked investments & calm refreshes" action={<button className="icon-button" type="button" onClick={() => setSheet({ type: "add-investment", title: "Add a sleeping treasure" })} aria-label="Add investment"><Plus size={21} /></button>} />
       <TreasurySwitcher current="investments" navigate={navigate} />
       <section className="investment-hero"><Sprout size={28} /><span>Long-term treasure<strong>{formatGold(totalValue)}</strong><small>{growth >= 0 ? "+" : "−"}{formatGold(Math.abs(growth))} versus mapped contributions</small></span><Gem size={30} /></section>
       <div className="investment-summary"><div><span>Contributed</span><strong>{formatGold(contributions)}</strong></div><div><span>Mapped growth</span><strong className={growth >= 0 ? "positive" : "negative"}>{growth >= 0 ? "+" : "−"}{formatGold(Math.abs(growth))}</strong></div><div><span>Projection assumption</span><strong>{weightedReturn.toFixed(1)}%</strong></div></div>
+      <section className="market-refresh-panel"><div><RefreshCw size={21} /><span><strong>Verified quote refresh</strong><p>Optional end-of-day data refreshes when a saved symbol is stale. Manual values stay in place if the provider is unavailable.</p></span></div><label className="check-label"><input type="checkbox" checked={state.journey.marketAutoRefresh} onChange={(event) => updateState((previous) => ({ ...previous, journey: { ...previous.journey, marketAutoRefresh: event.target.checked } }))} /> Refresh at most every</label><select aria-label="Market refresh interval" value={state.journey.marketRefreshHours} onChange={(event) => updateState((previous) => ({ ...previous, journey: { ...previous.journey, marketRefreshHours: Number(event.target.value) } }))}><option value="24">24 hours</option><option value="48">2 days</option><option value="168">7 days</option><option value="336">14 days</option></select></section>
       <div className="investment-list">{state.investments.map((position) => {
-        const value = position.units * position.unitPrice;
-        return <button key={position.id} type="button" onClick={() => setSheet({ type: "investment", id: position.id, title: position.name })}><span className="investment-gem"><Gem size={22} /></span><span><strong>{position.name}</strong><small>{position.type} · updated {formatDate(position.updatedAt)}</small></span><b>{formatGold(value)}</b><ChevronRight size={17} /></button>;
+        const value = position.units * (position.marketPrice ?? position.unitPrice);
+        return <article key={position.id} className="investment-row"><button type="button" onClick={() => setSheet({ type: "investment", id: position.id, title: position.name })}><span className="investment-gem"><Gem size={22} /></span><span><strong>{position.name}{position.ticker ? ` · ${position.ticker}` : ""}</strong><small>{position.quoteSource === "alpha-vantage" ? "Verified end-of-day quote" : "Manual value"} · {position.lastQuoteAt ? `refreshed ${formatDate(position.lastQuoteAt)}` : `updated ${formatDate(position.updatedAt)}`}</small>{position.dividendYield ? <em>{position.dividendYield.toFixed(2)}% trailing dividend yield</em> : null}</span><b>{formatGold(value)}</b><ChevronRight size={17} /></button>{position.ticker && <button className="position-refresh" type="button" onClick={() => refreshMarketQuote(position.id)} aria-label={`Refresh ${position.ticker}`}><RefreshCw size={17} /></button>}</article>;
       })}</div>
       {!state.investments.length && <div className="empty-state"><Sprout size={38} /><strong>No sleeping treasure is mapped.</strong><p>Manual tracking is optional. Dragon Mode never places a trade.</p></div>}
       <button className="primary-button full" type="button" onClick={() => setSheet({ type: "add-investment", title: "Add a sleeping treasure" })}><Plus size={18} /> Add investment position</button>
-      <button className="lore-card" type="button" onClick={() => setSheet({ type: "lore", title: "Projection assumptions", body: "The annual return is only an editable planning assumption. Markets may rise or fall, and Dragon Mode does not recommend or execute investments." })}><BookOpen size={24} /><span><strong>Growth is an estimate</strong><small>No trading or product recommendations</small></span><ChevronRight size={18} /></button>
+      <button className="lore-card" type="button" onClick={() => setSheet({ type: "lore", title: "Market data boundaries", body: "Quotes are delayed or end-of-day reference data from a configured provider. They can be incomplete or unavailable. Dragon Mode never places trades, recommends products, or silently changes units or contributions." })}><BookOpen size={24} /><span><strong>Quotes are reference data</strong><small>No trading or product recommendations</small></span><ChevronRight size={18} /></button>
       <button className="secondary-button full" type="button" onClick={() => { updateState((previous) => ({ ...previous, investments: previous.investments.map((item) => ({ ...item, updatedAt: new Date().toISOString() })) })); setToast("Investment check-in recorded · no balances changed"); }}><Check size={17} /> Confirm values are current</button>
     </section>
   );
@@ -860,15 +1002,15 @@ function SettingsScreen({ state, navigate, updateState, setToast, setSheet }: { 
       <section className="keeper-desk" aria-label="Keeper's desk">
         <span>Keeper&apos;s desk</span>
         <strong>Your vault, your rules.</strong>
-        <small>Preferences and records remain on this device.</small>
+        <small>Records are local-first; optional provider calls only request saved market symbols.</small>
       </section>
       <section className="settings-card"><div><span><Volume2 size={20} /><b>Sound effects</b></span><button type="button" role="switch" aria-label="Sound effects" aria-checked={state.profile.soundEnabled} className={state.profile.soundEnabled ? "toggle on" : "toggle"} onClick={() => { updateState((previous) => ({ ...previous, profile: { ...previous.profile, soundEnabled: !previous.profile.soundEnabled } })); playFeedback({ sound: !state.profile.soundEnabled, haptics: false }).catch(() => undefined); }}><i /></button></div><div><span><Zap size={20} /><b>Haptic feedback</b></span><button type="button" role="switch" aria-label="Haptic feedback" aria-checked={state.profile.hapticsEnabled} className={state.profile.hapticsEnabled ? "toggle on" : "toggle"} onClick={() => { updateState((previous) => ({ ...previous, profile: { ...previous.profile, hapticsEnabled: !previous.profile.hapticsEnabled } })); playFeedback({ sound: false, haptics: !state.profile.hapticsEnabled }).catch(() => undefined); }}><i /></button></div><div><span><Bell size={20} /><b>Claimant reminders</b></span><button type="button" role="switch" aria-label="Claimant reminders" aria-checked={state.profile.notificationsEnabled} className={state.profile.notificationsEnabled ? "toggle on" : "toggle"} onClick={() => updateState((previous) => ({ ...previous, profile: { ...previous.profile, notificationsEnabled: !previous.profile.notificationsEnabled } }))}><i /></button></div><div><span><Sparkles size={20} /><b>Reduced motion</b></span><button type="button" role="switch" aria-label="Reduced motion" aria-checked={state.profile.reducedMotion} className={state.profile.reducedMotion ? "toggle on" : "toggle"} onClick={() => updateState((previous) => ({ ...previous, profile: { ...previous.profile, reducedMotion: !previous.profile.reducedMotion } }))}><i /></button></div><div><span><BookOpen size={20} /><b>Plain-language hints</b></span><button type="button" role="switch" aria-label="Plain-language hints" aria-checked={state.profile.plainLanguage} className={state.profile.plainLanguage ? "toggle on" : "toggle"} onClick={() => updateState((previous) => ({ ...previous, profile: { ...previous.profile, plainLanguage: !previous.profile.plainLanguage } }))}><i /></button></div></section>
       <section className="preference-grid"><SectionTitle title="Display & region" /><label>Currency<select value={state.profile.preferredCurrency} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, preferredCurrency: event.target.value } }))}><option value="AUD">AUD · Australian dollar</option><option value="USD">USD · US dollar</option><option value="NZD">NZD · New Zealand dollar</option><option value="GBP">GBP · British pound</option><option value="EUR">EUR · Euro</option><option value="CAD">CAD · Canadian dollar</option></select></label><label>Locale<select value={state.profile.locale} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, locale: event.target.value } }))}><option value="en-AU">English (Australia)</option><option value="en-NZ">English (New Zealand)</option><option value="en-US">English (United States)</option><option value="en-GB">English (United Kingdom)</option></select></label><label>Text size <b>{Math.round(state.profile.fontScale * 100)}%</b><input type="range" min="0.9" max="1.35" step="0.05" value={state.profile.fontScale} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, fontScale: Number(event.target.value) } }))} /></label></section>
       <section className="notification-settings"><SectionTitle title="Friendly notifications" /><p>System permission: <strong>{permissionState}</strong></p>{(["claimants", "wishes", "weeklyReview", "priceChanges"] as const).map((key) => <label className="check-label" key={key}><input type="checkbox" checked={state.profile.notificationPreferences[key]} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, notificationPreferences: { ...previous.profile.notificationPreferences, [key]: event.target.checked } } }))} /> {key === "claimants" ? "Upcoming claimant charges" : key === "wishes" ? "Dragon's Rest decisions" : key === "weeklyReview" ? "Weekly review" : "Price-change review"}</label>)}</section>
       <section className="budget-settings"><SectionTitle title="Planning assumptions" /><label>Protected minimum buffer <b>{formatGold(state.profile.minimumBuffer, 0)}</b><input type="range" min="0" max="5000" step="100" value={state.profile.minimumBuffer} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, minimumBuffer: Number(event.target.value) } }))} /></label><label>Comfortable monthly cost <b>{formatGold(state.profile.comfortableMonthlyCost, 0)}</b><input type="range" min="500" max="6000" step="50" value={state.profile.comfortableMonthlyCost} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, comfortableMonthlyCost: Number(event.target.value) } }))} /></label></section>
-      <section className="data-panel"><h2>On-device data</h2><p>Your MVP hoard is stored locally on this device in IndexedDB. No account or cloud connection is used.</p><button type="button" onClick={exportData}><Download size={18} /> Export JSON</button><label><Upload size={18} /> Import JSON<input type="file" accept="application/json" onChange={(event) => importData(event.target.files?.[0])} /></label><button type="button" onClick={() => setSheet({ type: "reset", title: "Reset demo data" })}><RotateCcw size={18} /> Reset demo</button></section>
+      <section className="data-panel"><h2>Local-first records</h2><p>Your hoard stays in IndexedDB on this device. Optional quote refreshes send only the saved market symbol to Dragon Mode’s server-side provider adapter—never balances, debts, names, or transaction history.</p><button type="button" onClick={exportData}><Download size={18} /> Export JSON</button><label><Upload size={18} /> Import JSON<input type="file" accept="application/json" onChange={(event) => importData(event.target.files?.[0])} /></label><button type="button" onClick={() => setSheet({ type: "reset", title: "Reset demo data" })}><RotateCcw size={18} /> Reset demo</button></section>
       <button className="lore-card" type="button" onClick={() => { updateState((previous) => ({ ...previous, profile: { ...previous.profile, tutorialComplete: false, tutorialChapter: 0 } })); navigate("lair"); }}><BookOpen size={24} /><span><strong>Replay the Awakening</strong><small>Start the story tutorial again</small></span><ChevronRight size={18} /></button>
-      <p className="version-note">{APP_NAME} mobile MVP · Local-first demo</p>
+      <p className="version-note">{APP_NAME} mobile MVP · Local-first with optional verified quote data</p>
     </section>
   );
 }
@@ -929,11 +1071,12 @@ function Modal({ sheet, state, updateState, setSheet, logUse, setToast, navigate
   }, [setSheet]);
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSheet(null); }}>
-      <section ref={dialogRef} className={`modal-sheet ${sheet.type === "story-scene" ? "story-modal" : ""}`} role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <section ref={dialogRef} className={`modal-sheet ${sheet.type === "story-scene" || sheet.type === "journey-story" ? "story-modal" : ""}`} role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div className="modal-grip" />
         <header><h2 id="modal-title">{sheet.title}</h2><button type="button" aria-label="Close" onClick={() => setSheet(null)}><X size={20} /></button></header>
         {sheet.body && <p className="modal-body-copy">{sheet.body}</p>}
         {sheet.type === "story-scene" && <StoryScene storyId={sheet.id ?? "vault-answers"} state={state} updateState={updateState} setToast={setToast} setSheet={setSheet} />}
+        {sheet.type === "journey-story" && <JourneyStoryScene chapterId={sheet.id ?? ""} state={state} updateState={updateState} setToast={setToast} setSheet={setSheet} />}
         {sheet.type === "metric" && <MetricDetail id={sheet.id ?? ""} state={state} />}
         {sheet.type === "events" && <div className="modal-list"><button type="button">Streamkeep · in 2 days <b>{formatGold(15.49)}</b></button><button type="button">Lair Energy · in 5 days <b>{formatGold(87.12)}</b></button><button type="button">Skyforge payday · in 8 days <b>+{formatGold(3240, 0)}</b></button><button type="button">Ember Card minimum · in 9 days <b>{formatGold(75, 0)}</b></button></div>}
         {sheet.type === "hibernation" && <div className="formula-card"><strong>{hibernation.Comfortable.toFixed(1)} months · Comfortable</strong><div className="detail-grid"><div><span>Essential</span><strong>{hibernation.Essential.toFixed(1)} mo</strong></div><div><span>Comfortable</span><strong>{hibernation.Comfortable.toFixed(1)} mo</strong></div><div><span>Current lifestyle</span><strong>{hibernation["Current lifestyle"].toFixed(1)} mo</strong></div></div><p>Deep Vault reserves ({formatGold(getHoardSummary(state).guarded)}) ÷ the monthly cost for each mode.</p><small>This is an estimate, not financial advice.</small></div>}
@@ -958,6 +1101,27 @@ function Modal({ sheet, state, updateState, setSheet, logUse, setToast, navigate
       </section>
     </div>
   );
+}
+
+function JourneyStoryScene({ chapterId, state, updateState, setToast, setSheet }: { chapterId: string; state: DragonState; updateState: (updater: (state: DragonState) => DragonState) => void; setToast: (toast: string) => void; setSheet: (sheet: Sheet) => void }) {
+  const chapter = state.journey.chapters.find((item) => item.id === chapterId);
+  const avatar = selectedJourneyAvatar(state);
+  const [choice, setChoice] = useState(chapter?.selectedChoice ?? "");
+  if (!chapter) return <div className="empty-state"><Map size={32} /><strong>This atlas page is still forming.</strong><p>Return after the next Journey check-in.</p></div>;
+  const choose = (nextChoice: string) => {
+    const firstReading = !chapter.selectedChoice;
+    setChoice(nextChoice);
+    updateState((previous) => {
+      const progression = firstReading ? addProgressionXp(previous, 8, `journey-story-${chapter.id}`) : previous.progression;
+      return {
+        ...previous,
+        journey: { ...previous.journey, chapters: previous.journey.chapters.map((item) => item.id === chapter.id ? { ...item, selectedChoice: nextChoice, completedAt: item.completedAt ?? new Date().toISOString() } : item) },
+        progression: { ...progression, storyChoices: { ...progression.storyChoices, [chapter.id]: nextChoice } },
+      };
+    });
+    setToast(firstReading ? "Chapter carried forward · +8 XP" : "Journey choice updated");
+  };
+  return <div className={`visual-novel journey-novel route-${chapter.direction}`}><div className="journey-novel-stage"><span className="journey-scene-label">{formatDate(chapter.createdAt)} · {chapter.direction} road</span><span className="journey-novel-character" style={{ "--journey-avatar": `url("${avatar.asset}")` } as React.CSSProperties} aria-hidden="true" /></div><div className="dialogue-box"><small>{chapter.speaker === avatar.name ? `${avatar.name} · your keeper` : `${chapter.speaker} · speaking with ${avatar.name.split(" ")[0]}`}</small><p>{choice ? chapter.ending : chapter.opening}</p></div>{!choice ? <div className="story-choices">{chapter.choices.map((item) => <button type="button" key={item} onClick={() => choose(item)}><Sparkles size={15} /><span>{item}</span><ChevronRight size={16} /></button>)}</div> : <div className="story-resolution"><span><Check size={18} /></span><div><small>You chose</small><strong>{choice}</strong><p>The road can change. This chapter, its XP, and what you learned remain yours.</p></div><button type="button" onClick={() => setChoice("")}>Choose again</button></div>}<section className="story-action-preview"><Target size={18} /><span><small>Optional real-world action</small><strong>{chapter.actionTitle}</strong><p>{chapter.actionDescription}</p></span></section><button className="primary-button full" type="button" onClick={() => setSheet(null)}>{choice ? "Carry this chapter onward" : "Return to the atlas"}</button></div>;
 }
 
 function StoryScene({ storyId, state, updateState, setToast, setSheet }: { storyId: string; state: DragonState; updateState: (updater: (state: DragonState) => DragonState) => void; setToast: (toast: string) => void; setSheet: (sheet: Sheet) => void }) {
@@ -1122,8 +1286,13 @@ function AccountDetail({ account, state, updateState, setSheet, setToast }: { ac
   const [includedInHoard, setIncludedInHoard] = useState(account.includedInHoard);
   const [creditLimit, setCreditLimit] = useState((account.creditLimit ?? 0).toString());
   const [interestRate, setInterestRate] = useState((account.interestRate ?? 0).toString());
+  const [apy, setApy] = useState((account.apy ?? 0).toString());
+  const [compounding, setCompounding] = useState(account.compounding ?? "monthly");
+  const [promotionalApy, setPromotionalApy] = useState((account.promotionalApy ?? 0).toString());
+  const [promotionStart, setPromotionStart] = useState(account.promotionStart?.slice(0, 10) ?? "");
+  const [promotionEnd, setPromotionEnd] = useState(account.promotionEnd?.slice(0, 10) ?? "");
   const [color, setColor] = useState(account.color);
-  return <div className="detail-stack"><strong>{formatGold(Number(balance) || 0)}</strong><div className="edit-grid"><label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label><label>Institution<input value={institutionName} onChange={(event) => setInstitutionName(event.target.value)} /></label><label>Balance<input inputMode="decimal" value={balance} onChange={(event) => setBalance(event.target.value)} /></label><label>Type<select value={type} onChange={(event) => setType(event.target.value as typeof type)}><option value="cash">Cash</option><option value="transaction">Transaction</option><option value="savings">Savings</option><option value="credit">Credit</option><option value="loan">Loan</option><option value="investment">Investment</option><option value="asset">Asset</option></select></label><label>Credit limit<input inputMode="decimal" value={creditLimit} onChange={(event) => setCreditLimit(event.target.value)} /></label><label>Interest rate %<input inputMode="decimal" value={interestRate} onChange={(event) => setInterestRate(event.target.value)} /></label><label>Colour<input type="color" value={color} onChange={(event) => setColor(event.target.value)} /></label><label>Chamber<select value={chamberId} onChange={(event) => setChamberId(event.target.value)}>{state.chambers.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label className="check-label"><input type="checkbox" checked={includedInHoard} onChange={(event) => setIncludedInHoard(event.target.checked)} /> Include in hoard</label></div><button type="button" className="primary-button full" onClick={() => { updateState((previous) => ({ ...previous, accounts: previous.accounts.map((item) => item.id === account.id ? { ...item, name, balance: Number(balance) || 0, availableBalance: item.availableBalance === undefined ? undefined : Number(balance) || 0, type, chamberId, institutionName, includedInHoard, creditLimit: Number(creditLimit) || undefined, interestRate: Number(interestRate) || undefined, color } : item) })); setToast("Account updated"); }}><Save size={17} /> Save account</button><button type="button" className="danger-button full" onClick={() => { updateState((previous) => ({ ...previous, accounts: previous.accounts.map((item) => item.id === account.id ? { ...item, archived: true, includedInHoard: false } : item) })); setSheet(null); setToast("Account archived"); }}><Trash2 size={17} /> Archive account</button></div>;
+  return <div className="detail-stack"><strong>{formatGold(Number(balance) || 0)}</strong><div className="edit-grid"><label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label><label>Institution<input value={institutionName} onChange={(event) => setInstitutionName(event.target.value)} /></label><label>Balance<input inputMode="decimal" value={balance} onChange={(event) => setBalance(event.target.value)} /></label><label>Type<select value={type} onChange={(event) => setType(event.target.value as typeof type)}><option value="cash">Cash</option><option value="transaction">Transaction</option><option value="savings">Savings</option><option value="credit">Credit</option><option value="loan">Loan</option><option value="investment">Investment</option><option value="asset">Asset</option></select></label><label>Credit limit<input inputMode="decimal" value={creditLimit} onChange={(event) => setCreditLimit(event.target.value)} /></label><label>Borrowing APR %<input inputMode="decimal" value={interestRate} onChange={(event) => setInterestRate(event.target.value)} /></label><label>Deposit APY %<input inputMode="decimal" value={apy} onChange={(event) => setApy(event.target.value)} /></label><label>Compounding<select value={compounding} onChange={(event) => setCompounding(event.target.value as typeof compounding)}><option value="daily">Daily</option><option value="monthly">Monthly</option><option value="annual">Annual</option></select></label><label>Promotional APY %<input inputMode="decimal" value={promotionalApy} onChange={(event) => setPromotionalApy(event.target.value)} /></label><label>Promotion starts<input type="date" value={promotionStart} onChange={(event) => setPromotionStart(event.target.value)} /></label><label>Promotion ends<input type="date" value={promotionEnd} onChange={(event) => setPromotionEnd(event.target.value)} /></label><label>Colour<input type="color" value={color} onChange={(event) => setColor(event.target.value)} /></label><label>Chamber<select value={chamberId} onChange={(event) => setChamberId(event.target.value)}>{state.chambers.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label className="check-label"><input type="checkbox" checked={includedInHoard} onChange={(event) => setIncludedInHoard(event.target.checked)} /> Include in hoard</label></div><p className="estimate-note">APY fields power the Idle Vault display estimate. They never add money to this balance.</p><button type="button" className="primary-button full" onClick={() => { updateState((previous) => ({ ...previous, accounts: previous.accounts.map((item) => item.id === account.id ? { ...item, name, balance: Number(balance) || 0, availableBalance: item.availableBalance === undefined ? undefined : Number(balance) || 0, type, chamberId, institutionName, includedInHoard, creditLimit: Number(creditLimit) || undefined, interestRate: Number(interestRate) || undefined, apy: Number(apy) || undefined, compounding, promotionalApy: Number(promotionalApy) || undefined, promotionStart: promotionStart ? new Date(`${promotionStart}T12:00:00`).toISOString() : undefined, promotionEnd: promotionEnd ? new Date(`${promotionEnd}T12:00:00`).toISOString() : undefined, color } : item) })); setToast("Account and yield settings updated"); }}><Save size={17} /> Save account</button><button type="button" className="danger-button full" onClick={() => { updateState((previous) => ({ ...previous, accounts: previous.accounts.map((item) => item.id === account.id ? { ...item, archived: true, includedInHoard: false } : item) })); setSheet(null); setToast("Account archived"); }}><Trash2 size={17} /> Archive account</button></div>;
 }
 
 function InvestmentDetail({ investment, state, updateState, setSheet, setToast }: { investment: InvestmentPosition; state: DragonState; updateState: (updater: (state: DragonState) => DragonState) => void; setSheet: (sheet: Sheet) => void; setToast: (toast: string) => void }) {
@@ -1134,22 +1303,29 @@ function InvestmentDetail({ investment, state, updateState, setSheet, setToast }
   const [contributions, setContributions] = useState(investment.contributions.toString());
   const [annualReturnAssumption, setAnnualReturnAssumption] = useState(investment.annualReturnAssumption.toString());
   const [accountId, setAccountId] = useState(investment.accountId);
+  const [ticker, setTicker] = useState(investment.ticker ?? "");
+  const [dividendYield, setDividendYield] = useState((investment.dividendYield ?? 0).toString());
+  const [dividendFrequency, setDividendFrequency] = useState(investment.dividendFrequency ?? "quarterly");
+  const [nextDividendDate, setNextDividendDate] = useState(investment.nextDividendDate?.slice(0, 10) ?? "");
   const [note, setNote] = useState(investment.note);
   const value = (Number(units) || 0) * (Number(unitPrice) || 0);
-  return <div className="detail-stack"><strong>{formatGold(value)}</strong><p>Manually mapped value. Dragon Mode does not place trades or fetch market prices.</p><div className="edit-grid"><label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label><label>Type<select value={type} onChange={(event) => setType(event.target.value as InvestmentPosition["type"])}><option value="fund">Fund</option><option value="shares">Shares</option><option value="retirement">Retirement</option><option value="cash">Cash</option><option value="other">Other</option></select></label><label>Units<input inputMode="decimal" value={units} onChange={(event) => setUnits(event.target.value)} /></label><label>Unit price<input inputMode="decimal" value={unitPrice} onChange={(event) => setUnitPrice(event.target.value)} /></label><label>Contributions<input inputMode="decimal" value={contributions} onChange={(event) => setContributions(event.target.value)} /></label><label>Annual assumption %<input inputMode="decimal" value={annualReturnAssumption} onChange={(event) => setAnnualReturnAssumption(event.target.value)} /></label><label>Linked account<select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{state.accounts.filter((account) => account.type === "investment" || account.type === "asset").map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></label></div><label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label><button className="primary-button full" type="button" onClick={() => { updateState((previous) => ({ ...previous, investments: previous.investments.map((item) => item.id === investment.id ? { ...item, name, type, units: Number(units) || 0, unitPrice: Number(unitPrice) || 0, contributions: Number(contributions) || 0, annualReturnAssumption: Number(annualReturnAssumption) || 0, accountId, note, updatedAt: new Date().toISOString() } : item) })); setToast("Sleeping treasure updated"); }}><Save size={17} /> Save position</button><button className="danger-button full" type="button" onClick={() => { updateState((previous) => ({ ...previous, investments: previous.investments.filter((item) => item.id !== investment.id) })); setSheet(null); setToast("Investment position removed"); }}><Trash2 size={17} /> Remove position</button></div>;
+  return <div className="detail-stack"><strong>{formatGold(value)}</strong><p>{investment.quoteSource === "alpha-vantage" ? `Last verified quote ${investment.lastQuoteAt ? formatDate(investment.lastQuoteAt) : "saved"}.` : "Manual value is active."} Quotes are reference data; Dragon Mode never places trades.</p><div className="edit-grid"><label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label><label>Market symbol<input value={ticker} onChange={(event) => setTicker(event.target.value.toUpperCase())} placeholder="e.g. VGS.AX" autoCapitalize="characters" /></label><label>Type<select value={type} onChange={(event) => setType(event.target.value as InvestmentPosition["type"])}><option value="fund">Fund</option><option value="shares">Shares</option><option value="retirement">Retirement</option><option value="cash">Cash</option><option value="other">Other</option></select></label><label>Units<input inputMode="decimal" value={units} onChange={(event) => setUnits(event.target.value)} /></label><label>Unit price<input inputMode="decimal" value={unitPrice} onChange={(event) => setUnitPrice(event.target.value)} /></label><label>Contributions<input inputMode="decimal" value={contributions} onChange={(event) => setContributions(event.target.value)} /></label><label>Annual assumption %<input inputMode="decimal" value={annualReturnAssumption} onChange={(event) => setAnnualReturnAssumption(event.target.value)} /></label><label>Trailing dividend yield %<input inputMode="decimal" value={dividendYield} onChange={(event) => setDividendYield(event.target.value)} /></label><label>Dividend cadence<select value={dividendFrequency} onChange={(event) => setDividendFrequency(event.target.value as typeof dividendFrequency)}><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="half-yearly">Half-yearly</option><option value="annual">Annual</option><option value="irregular">Irregular</option></select></label><label>Next declared dividend<input type="date" value={nextDividendDate} onChange={(event) => setNextDividendDate(event.target.value)} /></label><label>Linked account<select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{state.accounts.filter((account) => account.type === "investment" || account.type === "asset").map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></label></div><label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label><p className="estimate-note">Dividend yield powers the Idle Vault estimate only. Add real distributions as income transactions after they occur.</p><button className="primary-button full" type="button" onClick={() => { updateState((previous) => ({ ...previous, investments: previous.investments.map((item) => item.id === investment.id ? { ...item, name, ticker: ticker.trim() || undefined, type, units: Number(units) || 0, unitPrice: Number(unitPrice) || 0, marketPrice: Number(unitPrice) || 0, quoteSource: item.quoteSource ?? "manual", contributions: Number(contributions) || 0, annualReturnAssumption: Number(annualReturnAssumption) || 0, dividendYield: Number(dividendYield) || undefined, dividendFrequency, nextDividendDate: nextDividendDate ? new Date(`${nextDividendDate}T12:00:00`).toISOString() : undefined, accountId, note, updatedAt: new Date().toISOString() } : item) })); setToast("Sleeping treasure and yield settings updated"); }}><Save size={17} /> Save position</button><button className="danger-button full" type="button" onClick={() => { updateState((previous) => ({ ...previous, investments: previous.investments.filter((item) => item.id !== investment.id) })); setSheet(null); setToast("Investment position removed"); }}><Trash2 size={17} /> Remove position</button></div>;
 }
 
 function AddInvestment({ state, updateState, setSheet, setToast }: { state: DragonState; updateState: (updater: (state: DragonState) => DragonState) => void; setSheet: (sheet: Sheet) => void; setToast: (toast: string) => void }) {
   const eligibleAccounts = state.accounts.filter((account) => account.type === "investment" || account.type === "asset");
   const [name, setName] = useState("");
+  const [ticker, setTicker] = useState("");
   const [type, setType] = useState<InvestmentPosition["type"]>("fund");
   const [units, setUnits] = useState("");
   const [unitPrice, setUnitPrice] = useState("");
   const [contributions, setContributions] = useState("");
   const [annualReturnAssumption, setAnnualReturnAssumption] = useState("5");
+  const [dividendYield, setDividendYield] = useState("");
+  const [dividendFrequency, setDividendFrequency] = useState<NonNullable<InvestmentPosition["dividendFrequency"]>>("quarterly");
   const [accountId, setAccountId] = useState(eligibleAccounts[0]?.id ?? "");
   const [note, setNote] = useState("");
-  return <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (!name || !Number(units) || !Number(unitPrice)) return; updateState((previous) => ({ ...previous, investments: [...previous.investments, { id: crypto.randomUUID(), accountId, name, type, units: Number(units), unitPrice: Number(unitPrice), contributions: Number(contributions) || Number(units) * Number(unitPrice), annualReturnAssumption: Number(annualReturnAssumption) || 0, note, updatedAt: new Date().toISOString() }] })); setSheet(null); setToast("Sleeping treasure mapped"); }}><label>Position name<input required value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Broad-market fund" /></label><div className="edit-grid"><label>Type<select value={type} onChange={(event) => setType(event.target.value as InvestmentPosition["type"])}><option value="fund">Fund</option><option value="shares">Shares</option><option value="retirement">Retirement</option><option value="cash">Cash</option><option value="other">Other</option></select></label><label>Linked account<select required value={accountId} onChange={(event) => setAccountId(event.target.value)}>{eligibleAccounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></label><label>Units<input required inputMode="decimal" value={units} onChange={(event) => setUnits(event.target.value)} /></label><label>Unit price<input required inputMode="decimal" value={unitPrice} onChange={(event) => setUnitPrice(event.target.value)} /></label><label>Total contributed<input inputMode="decimal" value={contributions} onChange={(event) => setContributions(event.target.value)} /></label><label>Annual assumption %<input inputMode="decimal" value={annualReturnAssumption} onChange={(event) => setAnnualReturnAssumption(event.target.value)} /></label></div><label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional context" /></label>{!eligibleAccounts.length && <p className="warning-copy">Add an investment or asset account first.</p>}<button disabled={!eligibleAccounts.length} className="primary-button full" type="submit"><Plus size={18} /> Add position</button></form>;
+  return <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (!name || !Number(units) || !Number(unitPrice)) return; updateState((previous) => ({ ...previous, investments: [...previous.investments, { id: crypto.randomUUID(), accountId, name, ticker: ticker.trim().toUpperCase() || undefined, type, units: Number(units), unitPrice: Number(unitPrice), marketPrice: Number(unitPrice), quoteSource: "manual", contributions: Number(contributions) || Number(units) * Number(unitPrice), annualReturnAssumption: Number(annualReturnAssumption) || 0, dividendYield: Number(dividendYield) || undefined, dividendFrequency, note, updatedAt: new Date().toISOString() }] })); setSheet(null); setToast("Sleeping treasure mapped"); }}><label>Position name<input required value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Broad-market fund" /></label><div className="edit-grid"><label>Market symbol<input value={ticker} onChange={(event) => setTicker(event.target.value.toUpperCase())} placeholder="Optional · e.g. VGS.AX" autoCapitalize="characters" /></label><label>Type<select value={type} onChange={(event) => setType(event.target.value as InvestmentPosition["type"])}><option value="fund">Fund</option><option value="shares">Shares</option><option value="retirement">Retirement</option><option value="cash">Cash</option><option value="other">Other</option></select></label><label>Linked account<select required value={accountId} onChange={(event) => setAccountId(event.target.value)}>{eligibleAccounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></label><label>Units<input required inputMode="decimal" value={units} onChange={(event) => setUnits(event.target.value)} /></label><label>Unit price<input required inputMode="decimal" value={unitPrice} onChange={(event) => setUnitPrice(event.target.value)} /></label><label>Total contributed<input inputMode="decimal" value={contributions} onChange={(event) => setContributions(event.target.value)} /></label><label>Annual assumption %<input inputMode="decimal" value={annualReturnAssumption} onChange={(event) => setAnnualReturnAssumption(event.target.value)} /></label><label>Trailing dividend yield %<input inputMode="decimal" value={dividendYield} onChange={(event) => setDividendYield(event.target.value)} /></label><label>Dividend cadence<select value={dividendFrequency} onChange={(event) => setDividendFrequency(event.target.value as typeof dividendFrequency)}><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="half-yearly">Half-yearly</option><option value="annual">Annual</option><option value="irregular">Irregular</option></select></label></div><label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional context" /></label><p className="estimate-note">Symbols enable optional verified end-of-day refreshes. Manual values remain usable without a provider connection.</p>{!eligibleAccounts.length && <p className="warning-copy">Add an investment or asset account first.</p>}<button disabled={!eligibleAccounts.length} className="primary-button full" type="submit"><Plus size={18} /> Add position</button></form>;
 }
 
 function AddTransaction({ state, updateState, setSheet, setToast }: { state: DragonState; updateState: (updater: (state: DragonState) => DragonState) => void; setSheet: (sheet: Sheet) => void; setToast: (toast: string) => void }) {
@@ -1163,18 +1339,19 @@ function AddTransaction({ state, updateState, setSheet, setToast }: { state: Dra
   const [status, setStatus] = useState<"cleared" | "pending">("cleared");
   const [recurringSeriesId, setRecurringSeriesId] = useState("");
   const [unusual, setUnusual] = useState(false);
+  const [transfer, setTransfer] = useState(false);
   const submit = () => {
     const numericAmount = Number(amount);
     if (!merchant || !numericAmount) return;
     updateState((previous) => ({
       ...previous,
       accounts: previous.accounts.map((account) => account.id === accountId && status === "cleared" ? { ...account, balance: account.balance + (direction === "income" ? numericAmount : -numericAmount), availableBalance: account.availableBalance === undefined ? undefined : account.availableBalance + (direction === "income" ? numericAmount : -numericAmount) } : account),
-      transactions: [{ id: crypto.randomUUID(), accountId, date: new Date(`${date}T12:00:00`).toISOString(), merchant, amount: numericAmount, direction, category, recurringSeriesId: recurringSeriesId || undefined, note, status, unusual, createdManually: true }, ...previous.transactions],
+      transactions: [{ id: crypto.randomUUID(), accountId, date: new Date(`${date}T12:00:00`).toISOString(), merchant, amount: numericAmount, direction, category, recurringSeriesId: recurringSeriesId || undefined, note, status, unusual, transfer, createdManually: true }, ...previous.transactions],
     }));
     setSheet(null);
     setToast("Treasure movement added");
   };
-  return <form className="form-stack" onSubmit={(event) => { event.preventDefault(); submit(); }}><label>Merchant or source<input required value={merchant} onChange={(event) => setMerchant(event.target.value)} placeholder="e.g. Moon Market" /></label><div className="edit-grid"><label>Amount<input required value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" placeholder="0.00" /></label><label>Date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><label>Direction<select value={direction} onChange={(event) => setDirection(event.target.value as typeof direction)}><option value="expense">Expense</option><option value="income">Income</option></select></label><label>Status<select value={status} onChange={(event) => setStatus(event.target.value as typeof status)}><option value="cleared">Cleared</option><option value="pending">Pending</option></select></label><label>Chamber<select value={category} onChange={(event) => setCategory(event.target.value)}><option>Uncategorised</option><option>Income</option>{state.chambers.map((item) => <option key={item.id}>{item.name}</option>)}</select></label><label>Account<select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{state.accounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>Recurring claimant<select value={recurringSeriesId} onChange={(event) => setRecurringSeriesId(event.target.value)}><option value="">Not recurring</option>{state.subscriptions.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label className="check-label"><input type="checkbox" checked={unusual} onChange={(event) => setUnusual(event.target.checked)} /> Mark unusual</label></div><label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional context" /></label><button className="primary-button full" type="submit"><Plus size={18} /> Add transaction</button></form>;
+  return <form className="form-stack" onSubmit={(event) => { event.preventDefault(); submit(); }}><label>Merchant or source<input required value={merchant} onChange={(event) => setMerchant(event.target.value)} placeholder="e.g. Moon Market" /></label><div className="edit-grid"><label>Amount<input required value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" placeholder="0.00" /></label><label>Date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><label>Direction<select value={direction} onChange={(event) => setDirection(event.target.value as typeof direction)}><option value="expense">Expense</option><option value="income">Income</option></select></label><label>Status<select value={status} onChange={(event) => setStatus(event.target.value as typeof status)}><option value="cleared">Cleared</option><option value="pending">Pending</option></select></label><label>Chamber<select value={category} onChange={(event) => setCategory(event.target.value)}><option>Uncategorised</option><option>Income</option>{state.chambers.map((item) => <option key={item.id}>{item.name}</option>)}</select></label><label>Account<select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{state.accounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>Recurring claimant<select value={recurringSeriesId} onChange={(event) => setRecurringSeriesId(event.target.value)}><option value="">Not recurring</option>{state.subscriptions.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label className="check-label"><input type="checkbox" checked={transfer} onChange={(event) => setTransfer(event.target.checked)} /> Transfer between my accounts</label><label className="check-label"><input type="checkbox" checked={unusual} onChange={(event) => setUnusual(event.target.checked)} /> Mark unusual</label></div>{transfer && <p className="estimate-note">Transfers move treasure between accounts but do not count as income or spending in Journey direction.</p>}<label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional context" /></label><button className="primary-button full" type="submit"><Plus size={18} /> Add transaction</button></form>;
 }
 
 function AddSubscription({ state, updateState, setSheet, setToast }: { state: DragonState; updateState: (updater: (state: DragonState) => DragonState) => void; setSheet: (sheet: Sheet) => void; setToast: (toast: string) => void }) {
@@ -1204,9 +1381,11 @@ function AddAccount({ updateState, setSheet, setToast }: { updateState: (updater
   const [name, setName] = useState("");
   const [institutionName, setInstitutionName] = useState("");
   const [balance, setBalance] = useState("");
+  const [apy, setApy] = useState("");
+  const [compounding, setCompounding] = useState<NonNullable<DragonState["accounts"][number]["compounding"]>>("monthly");
   const [type, setType] = useState<DragonState["accounts"][number]["type"]>("savings");
   const [chamberId, setChamberId] = useState("vault");
-  return <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (!name) return; updateState((previous) => ({ ...previous, accounts: [...previous.accounts, { id: crypto.randomUUID(), name, institutionName, type, balance: Number(balance) || 0, availableBalance: type === "transaction" || type === "cash" ? Number(balance) || 0 : undefined, includedInHoard: true, chamberId, icon: type === "investment" ? "sprout" : type === "credit" ? "card" : "vault", color: type === "investment" ? "#66c79a" : "#5b55d6", archived: false }] })); setSheet(null); setToast("Account added to the hoard"); }}><label>Account name<input required value={name} onChange={(event) => setName(event.target.value)} /></label><label>Institution<input value={institutionName} onChange={(event) => setInstitutionName(event.target.value)} placeholder="Optional" /></label><div className="edit-grid"><label>Current balance<input inputMode="decimal" value={balance} onChange={(event) => setBalance(event.target.value)} /></label><label>Type<select value={type} onChange={(event) => setType(event.target.value as typeof type)}><option value="cash">Cash</option><option value="transaction">Transaction</option><option value="savings">Savings</option><option value="credit">Credit</option><option value="loan">Loan</option><option value="investment">Investment</option><option value="asset">Asset</option></select></label><label>Chamber<select value={chamberId} onChange={(event) => setChamberId(event.target.value)}><option value="hearth">The Hearth</option><option value="vault">Deep Vault</option><option value="workshop">Workshop</option><option value="roost">The Roost</option><option value="sleep">Long Sleep</option><option value="tribute">Tribute Hall</option><option value="wish">Wish Vault</option></select></label></div><button className="primary-button full" type="submit"><Plus size={18} /> Add account</button></form>;
+  return <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (!name) return; updateState((previous) => ({ ...previous, accounts: [...previous.accounts, { id: crypto.randomUUID(), name, institutionName, type, balance: Number(balance) || 0, availableBalance: type === "transaction" || type === "cash" ? Number(balance) || 0 : undefined, apy: Number(apy) || undefined, compounding, includedInHoard: true, chamberId, icon: type === "investment" ? "sprout" : type === "credit" ? "card" : "vault", color: type === "investment" ? "#66c79a" : "#5b55d6", archived: false }] })); setSheet(null); setToast("Account added to the hoard"); }}><label>Account name<input required value={name} onChange={(event) => setName(event.target.value)} /></label><label>Institution<input value={institutionName} onChange={(event) => setInstitutionName(event.target.value)} placeholder="Optional" /></label><div className="edit-grid"><label>Current balance<input inputMode="decimal" value={balance} onChange={(event) => setBalance(event.target.value)} /></label><label>Type<select value={type} onChange={(event) => setType(event.target.value as typeof type)}><option value="cash">Cash</option><option value="transaction">Transaction</option><option value="savings">Savings</option><option value="credit">Credit</option><option value="loan">Loan</option><option value="investment">Investment</option><option value="asset">Asset</option></select></label><label>Deposit APY %<input inputMode="decimal" value={apy} onChange={(event) => setApy(event.target.value)} placeholder="Optional" /></label><label>Compounding<select value={compounding} onChange={(event) => setCompounding(event.target.value as typeof compounding)}><option value="daily">Daily</option><option value="monthly">Monthly</option><option value="annual">Annual</option></select></label><label>Chamber<select value={chamberId} onChange={(event) => setChamberId(event.target.value)}><option value="hearth">The Hearth</option><option value="vault">Deep Vault</option><option value="workshop">Workshop</option><option value="roost">The Roost</option><option value="sleep">Long Sleep</option><option value="tribute">Tribute Hall</option><option value="wish">Wish Vault</option></select></label></div><p className="estimate-note">APY is used only for Idle Vault estimates until real interest is recorded as a transaction.</p><button className="primary-button full" type="submit"><Plus size={18} /> Add account</button></form>;
 }
 
 function AddDebt({ updateState, setSheet, setToast }: { updateState: (updater: (state: DragonState) => DragonState) => void; setSheet: (sheet: Sheet) => void; setToast: (toast: string) => void }) {

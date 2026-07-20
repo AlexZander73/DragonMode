@@ -14,6 +14,7 @@ import {
   searchTransactions,
 } from "../app/calculations";
 import { createSeedState, normalizeState, SCHEMA_VERSION } from "../app/data";
+import { calculateIdleReward, captureFinancialSnapshot, processJourneySession, shouldRefreshMarketData } from "../app/journey";
 
 test("subscription cadences normalize to a monthly planning cost", () => {
   const subscription = createSeedState().subscriptions[0];
@@ -102,5 +103,63 @@ test("search and schema migration retain usable local data", () => {
   assert.ok(migrated.investments.length > 0);
   assert.ok(migrated.accounts.every((account) => account.icon && account.color));
   assert.equal(migrated.pets.length, 3);
+  assert.equal(migrated.journey.selectedAvatarId, "asha");
+  assert.equal(migrated.journey.marketRefreshHours, 24);
   assert.deepEqual(migrated.progression.storyChoices, {});
+});
+
+test("Journey direction follows total assets less debt without punishing small movement", () => {
+  const state = createSeedState();
+  const now = new Date("2026-07-20T12:00:00.000Z");
+  const base = captureFinancialSnapshot(state, new Date("2026-07-13T12:00:00.000Z"));
+  const steady = captureFinancialSnapshot(state, now, { ...base, netWorth: base.netWorth - 10 });
+  const risingState = { ...state, accounts: state.accounts.map((account) => account.id === "a2" ? { ...account, balance: account.balance + 500 } : account) };
+  const shelteredState = { ...state, debts: state.debts.map((debt) => debt.id === "d1" ? { ...debt, balance: debt.balance + 500 } : debt) };
+  assert.equal(steady.direction, "steady");
+  assert.equal(captureFinancialSnapshot(risingState, now, base).direction, "rising");
+  assert.equal(captureFinancialSnapshot(shelteredState, now, base).direction, "sheltered");
+});
+
+test("Journey cash flow excludes transfers and keeps irregular income visible", () => {
+  const state = createSeedState();
+  state.transactions.unshift({ id: "test-transfer", accountId: "a1", date: new Date().toISOString(), merchant: "Internal transfer", amount: 9999, direction: "income", category: "Income", note: "", status: "cleared", createdManually: true, transfer: true });
+  const snapshot = captureFinancialSnapshot(state);
+  const expectedIncome = state.transactions.filter((item) => item.direction === "income" && item.status === "cleared" && !item.transfer && Date.now() - new Date(item.date).getTime() <= 30 * 86_400_000).reduce((sum, item) => sum + item.amount, 0);
+  assert.equal(snapshot.inflow30, expectedIncome);
+  const session = processJourneySession(state);
+  assert.ok(session.journey.incomeSources.some((item) => item.name === "Freelance Bounty" && item.reliability === "variable"));
+});
+
+test("Idle Vault estimates yield without changing any financial record", () => {
+  const state = createSeedState();
+  const before = structuredClone({ accounts: state.accounts, investments: state.investments, transactions: state.transactions });
+  const reward = calculateIdleReward(state, new Date(Date.now() - 14 * 86_400_000).toISOString());
+  assert.ok(reward && reward.total > 0 && reward.starShards > 0);
+  assert.ok(reward?.sources.some((item) => item.kind === "interest"));
+  assert.ok(reward?.sources.some((item) => item.kind === "dividend"));
+  assert.deepEqual({ accounts: state.accounts, investments: state.investments, transactions: state.transactions }, before);
+});
+
+test("Journey cadence creates no more than one due chapter and preserves progression", () => {
+  const state = createSeedState();
+  const now = new Date("2026-07-20T12:00:00.000Z");
+  state.journey.lastOpenedAt = new Date(now.getTime() - 2 * 86_400_000).toISOString();
+  const first = processJourneySession(state, now);
+  const second = processJourneySession(first, new Date(now.getTime() + 60_000));
+  assert.equal(first.journey.chapters.length, 1);
+  assert.equal(second.journey.chapters.length, 1);
+  assert.equal(second.progression.level, state.progression.level);
+  const weekly = structuredClone(first);
+  weekly.journey.cadence = "weekly";
+  const early = processJourneySession(weekly, new Date(now.getTime() + 2 * 86_400_000));
+  const due = processJourneySession(weekly, new Date(now.getTime() + 8 * 86_400_000));
+  assert.equal(early.journey.chapters.length, 1);
+  assert.equal(due.journey.chapters.length, 2);
+});
+
+test("market refresh throttle respects the selected stale interval", () => {
+  const now = new Date("2026-07-20T12:00:00.000Z");
+  assert.equal(shouldRefreshMarketData(undefined, 24, now), true);
+  assert.equal(shouldRefreshMarketData("2026-07-20T00:00:00.000Z", 24, now), false);
+  assert.equal(shouldRefreshMarketData("2026-07-18T00:00:00.000Z", 24, now), true);
 });

@@ -9,10 +9,10 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Dragon Mode" },
   openGraph: {
     title: "Dragon Mode",
-    description: "Protect your hoard. Rest easier.",
-    images: [{ url: "/og.png", width: 1536, height: 1024, alt: "Dragon Mode fantasy finance app" }],
+    description: "Protect your hoard. Keep the path.",
+    images: [{ url: "/og.png", width: 1731, height: 909, alt: "Dragon Mode keepers overlooking a branching fantasy atlas" }],
   },
-  twitter: { card: "summary_large_image", title: "Dragon Mode", description: "Protect your hoard. Rest easier.", images: ["/og.png"] },
+  twitter: { card: "summary_large_image", title: "Dragon Mode", description: "Protect your hoard. Keep the path.", images: ["/og.png"] },
   icons: {
     icon: "/art/app-icon-v2.png",
     shortcut: "/art/app-icon-v2.png",

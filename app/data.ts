@@ -19,6 +19,11 @@ export type Account = {
   institutionName?: string;
   creditLimit?: number;
   interestRate?: number;
+  apy?: number;
+  compounding?: "daily" | "monthly" | "annual";
+  promotionalApy?: number;
+  promotionStart?: string;
+  promotionEnd?: string;
   includedInHoard: boolean;
   chamberId: string;
   icon: string;
@@ -45,6 +50,8 @@ export type Transaction = {
   reviewedAt?: string;
   worthRating?: WorthRating;
   createdManually: boolean;
+  transfer?: boolean;
+  incomeSourceId?: string;
 };
 
 export type UsageEvent = {
@@ -138,6 +145,14 @@ export type InvestmentPosition = {
   unitPrice: number;
   contributions: number;
   annualReturnAssumption: number;
+  ticker?: string;
+  marketPrice?: number;
+  quoteCurrency?: string;
+  quoteSource?: "manual" | "alpha-vantage";
+  lastQuoteAt?: string;
+  dividendYield?: number;
+  dividendFrequency?: "monthly" | "quarterly" | "half-yearly" | "annual" | "irregular";
+  nextDividendDate?: string;
   note: string;
   updatedAt: string;
 };
@@ -170,6 +185,79 @@ export type Pet = {
   lastInteraction: string;
   bondXp: number;
   mood: "bright" | "waiting" | "resting";
+  asset: string;
+  color: string;
+};
+
+export type JourneyDirection = "rising" | "steady" | "sheltered";
+export type IncomeKind = "salary" | "contract" | "commission" | "business" | "interest" | "dividend" | "gift" | "other";
+export type IncomeCadence = "weekly" | "fortnightly" | "monthly" | "quarterly" | "annual" | "irregular";
+
+export type IncomeSource = {
+  id: string;
+  name: string;
+  kind: IncomeKind;
+  cadence: IncomeCadence;
+  expectedAmount: number;
+  reliability: "steady" | "variable" | "seasonal";
+  lastSeenAt?: string;
+};
+
+export type FinancialSnapshot = {
+  id: string;
+  capturedAt: string;
+  assets: number;
+  debt: number;
+  netWorth: number;
+  inflow30: number;
+  outflow30: number;
+  direction: JourneyDirection;
+  change: number;
+};
+
+export type JourneyChapter = {
+  id: string;
+  dayKey: string;
+  createdAt: string;
+  direction: JourneyDirection;
+  title: string;
+  speaker: string;
+  opening: string;
+  ending: string;
+  choices: string[];
+  selectedChoice?: string;
+  completedAt?: string;
+  actionTitle: string;
+  actionDescription: string;
+  actionCategory: Quest["category"];
+  goalCompletedAt?: string;
+};
+
+export type IdleRewardSource = {
+  id: string;
+  label: string;
+  kind: "interest" | "dividend";
+  amount: number;
+};
+
+export type IdleReward = {
+  id: string;
+  from: string;
+  to: string;
+  estimatedInterest: number;
+  estimatedDividends: number;
+  total: number;
+  starShards: number;
+  sources: IdleRewardSource[];
+  claimedAt?: string;
+};
+
+export type JourneyAvatar = {
+  id: string;
+  name: string;
+  role: string;
+  pronouns: string;
+  trait: string;
   asset: string;
   color: string;
 };
@@ -208,6 +296,24 @@ export type DragonState = {
   wishes: Wish[];
   investments: InvestmentPosition[];
   pets: Pet[];
+  journey: {
+    enabled: boolean;
+    selectedAvatarId: string;
+    cadence: "daily" | "weekly" | "pay-cycle";
+    comparisonDays: number;
+    stabilityPercent: number;
+    lastOpenedAt: string;
+    lastSnapshotAt: string;
+    currentNode: number;
+    snapshots: FinancialSnapshot[];
+    chapters: JourneyChapter[];
+    incomeSources: IncomeSource[];
+    idleRewards: IdleReward[];
+    starShards: number;
+    marketAutoRefresh: boolean;
+    marketRefreshHours: number;
+    lastMarketRefreshAt?: string;
+  };
   projections: {
     rangeMonths: number;
     activeScenario: string;
@@ -227,7 +333,16 @@ export type DragonState = {
   updatedAt: string;
 };
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
+
+export const JOURNEY_AVATARS: JourneyAvatar[] = [
+  { id: "asha", name: "Asha Emberwright", role: "Forge-mage", pronouns: "she/her", trait: "Turns small, steady actions into durable tools.", asset: "/journey/avatar-asha-v1.png", color: "#d87a3d" },
+  { id: "kael", name: "Kael Windmere", role: "Wind cartographer", pronouns: "he/him", trait: "Finds a workable route when income changes direction.", asset: "/journey/avatar-kael-v1.png", color: "#397fca" },
+  { id: "bramble", name: "Bramble Stoneheart", role: "Vault archivist", pronouns: "she/her", trait: "Remembers every victory, especially the quiet ones.", asset: "/journey/avatar-bramble-v1.png", color: "#8c56b8" },
+  { id: "sol", name: "Sol Arden", role: "Celestial navigator", pronouns: "they/them", trait: "Reads long horizons without losing sight of today.", asset: "/journey/avatar-sol-v1.png", color: "#5268bd" },
+  { id: "pip", name: "Pip Reedwhistle", role: "Ledger-bard", pronouns: "they/them", trait: "Makes irregular income feel visible and worth celebrating.", asset: "/journey/avatar-pip-v1.png", color: "#4d9b67" },
+  { id: "mara", name: "Mara Ironroot", role: "Bridge-keeper", pronouns: "she/her", trait: "Repairs the next safe step without judging the storm.", asset: "/journey/avatar-mara-v1.png", color: "#b98635" },
+];
 
 const daysFromNow = (days: number) => {
   const date = new Date();
@@ -293,7 +408,7 @@ export const createSeedState = (): DragonState => ({
   ],
   accounts: [
     { id: "a1", name: "Daily Gold", type: "transaction", balance: 6210.3, availableBalance: 6210.3, institutionName: "Sky Vault Credit Union", includedInHoard: true, chamberId: "hearth", icon: "wallet", color: "#e99a26", archived: false },
-    { id: "a2", name: "Deep Vault Reserve", type: "savings", balance: 7850, institutionName: "Sky Vault Credit Union", includedInHoard: true, chamberId: "vault", icon: "vault", color: "#2377ca", archived: false },
+    { id: "a2", name: "Deep Vault Reserve", type: "savings", balance: 7850, institutionName: "Sky Vault Credit Union", apy: 4.75, compounding: "daily", promotionalApy: 5.2, promotionStart: daysAgo(30), promotionEnd: daysFromNow(60), includedInHoard: true, chamberId: "vault", icon: "vault", color: "#2377ca", archived: false },
     { id: "a3", name: "Long Sleep Fund", type: "investment", balance: 8650.22, institutionName: "Northstar", includedInHoard: true, chamberId: "sleep", icon: "sprout", color: "#2a9b54", archived: false },
     { id: "a4", name: "Ember Card", type: "credit", balance: -2310, availableBalance: 1690, creditLimit: 4000, interestRate: 22.49, institutionName: "Ember Bank", includedInHoard: true, chamberId: "tribute", icon: "card", color: "#d85836", archived: false },
   ],
@@ -310,7 +425,7 @@ export const createSeedState = (): DragonState => ({
     { id: "t10", accountId: "a1", date: daysAgo(9), merchant: "Dragonfruit Grocer", amount: 124.65, direction: "expense", category: "The Hearth", note: "Groceries", status: "cleared", createdManually: false },
     { id: "t11", accountId: "a1", date: daysAgo(10), merchant: "Songbird Plus", amount: 10.99, direction: "expense", category: "Tribute Hall", recurringSeriesId: "s2", note: "", status: "cleared", createdManually: false },
     { id: "t12", accountId: "a1", date: daysAgo(11), merchant: "Roost Café", amount: 9.8, direction: "expense", category: "The Roost", note: "Quick lunch", status: "cleared", worthRating: "Neutral", createdManually: false },
-    { id: "t13", accountId: "a1", date: daysAgo(12), merchant: "Deep Vault Transfer", amount: 100, direction: "expense", category: "Deep Vault", note: "Monthly buffer", status: "cleared", createdManually: false },
+    { id: "t13", accountId: "a1", date: daysAgo(12), merchant: "Deep Vault Transfer", amount: 100, direction: "expense", category: "Deep Vault", note: "Monthly buffer", status: "cleared", createdManually: false, transfer: true },
     { id: "t14", accountId: "a1", date: daysAgo(13), merchant: "Streamkeep", amount: 15.49, direction: "expense", category: "Tribute Hall", recurringSeriesId: "s1", note: "", status: "cleared", createdManually: false },
     { id: "t15", accountId: "a1", date: daysAgo(14), merchant: "Freelance Bounty", amount: 460, direction: "income", category: "Income", note: "Design work", status: "cleared", createdManually: true },
   ],
@@ -336,7 +451,7 @@ export const createSeedState = (): DragonState => ({
     { id: "w1", name: "Mechanical Keyboard", price: 179, restDays: 3, endsAt: daysFromNow(2), category: "Workshop", desiredDate: daysFromNow(14), fundingSource: "Free Gold", reason: "A quieter, more comfortable writing setup.", status: "resting" },
   ],
   investments: [
-    { id: "i1", accountId: "a3", name: "Northstar Balanced Fund", type: "fund", units: 104.72, unitPrice: 58.25, contributions: 5400, annualReturnAssumption: 5.5, note: "Long-term diversified holding.", updatedAt: daysAgo(1) },
+    { id: "i1", accountId: "a3", name: "Northstar Balanced Fund", type: "fund", units: 104.72, unitPrice: 58.25, contributions: 5400, annualReturnAssumption: 5.5, ticker: "VGS.AX", marketPrice: 58.25, quoteCurrency: "AUD", quoteSource: "manual", lastQuoteAt: daysAgo(1), dividendYield: 2.4, dividendFrequency: "quarterly", nextDividendDate: daysFromNow(31), note: "Long-term diversified holding.", updatedAt: daysAgo(1) },
     { id: "i2", accountId: "a3", name: "Retirement Reserve", type: "retirement", units: 1, unitPrice: 2550, contributions: 2380, annualReturnAssumption: 5, note: "Manually tracked retirement balance.", updatedAt: daysAgo(3) },
   ],
   pets: [
@@ -344,6 +459,30 @@ export const createSeedState = (): DragonState => ({
     { id: "quill", name: "Quill", species: "Scroll fox", cadence: "weekly", lastInteraction: daysAgo(3), bondXp: 78, mood: "bright", asset: "/characters/pet-quill-v1.png", color: "#d89545" },
     { id: "luna", name: "Luna", species: "Moon tortoise", cadence: "monthly", lastInteraction: daysAgo(36), bondXp: 118, mood: "waiting", asset: "/characters/pet-luna-v1.png", color: "#7774dc" },
   ],
+  journey: {
+    enabled: true,
+    selectedAvatarId: "asha",
+    cadence: "daily",
+    comparisonDays: 7,
+    stabilityPercent: 0.25,
+    lastOpenedAt: daysAgo(2),
+    lastSnapshotAt: daysAgo(7),
+    currentNode: 4,
+    snapshots: [
+      { id: "snapshot-seed-1", capturedAt: daysAgo(30), assets: 22100, debt: 6610, netWorth: 15490, inflow30: 3240, outflow30: 1890, direction: "steady", change: 0 },
+      { id: "snapshot-seed-2", capturedAt: daysAgo(7), assets: 22530, debt: 6460, netWorth: 16070, inflow30: 3700, outflow30: 2030, direction: "rising", change: 580 },
+    ],
+    chapters: [],
+    incomeSources: [
+      { id: "income-skyforge", name: "Skyforge Payroll", kind: "salary", cadence: "fortnightly", expectedAmount: 3240, reliability: "steady", lastSeenAt: daysAgo(1) },
+      { id: "income-freelance", name: "Freelance Bounty", kind: "contract", cadence: "irregular", expectedAmount: 460, reliability: "variable", lastSeenAt: daysAgo(14) },
+      { id: "income-vault", name: "Deep Vault interest", kind: "interest", cadence: "monthly", expectedAmount: 31, reliability: "steady" },
+    ],
+    idleRewards: [],
+    starShards: 84,
+    marketAutoRefresh: true,
+    marketRefreshHours: 24,
+  },
   projections: {
     rangeMonths: 12,
     activeScenario: "Current Flight",
@@ -379,6 +518,7 @@ export function normalizeState(input: unknown): DragonState {
   const chambers = source.chambers.map((chamber, index) => ({ ...chamber, sortOrder: chamber.sortOrder ?? index }));
   const accounts = Array.isArray(source.accounts) ? source.accounts.map((account, index) => ({
     ...account,
+    compounding: account.compounding ?? (account.apy ? "daily" as const : undefined),
     includedInHoard: account.includedInHoard ?? true,
     archived: account.archived ?? false,
     icon: account.icon ?? "wallet",
@@ -426,6 +566,14 @@ export function normalizeState(input: unknown): DragonState {
     ...seed.pets[index % seed.pets.length],
     ...pet,
   })) : seed.pets;
+  const journey = {
+    ...seed.journey,
+    ...(source.journey ?? {}),
+    snapshots: Array.isArray(source.journey?.snapshots) ? source.journey.snapshots : seed.journey.snapshots,
+    chapters: Array.isArray(source.journey?.chapters) ? source.journey.chapters : seed.journey.chapters,
+    incomeSources: Array.isArray(source.journey?.incomeSources) ? source.journey.incomeSources : seed.journey.incomeSources,
+    idleRewards: Array.isArray(source.journey?.idleRewards) ? source.journey.idleRewards : seed.journey.idleRewards,
+  };
 
   return {
     ...seed,
@@ -444,7 +592,15 @@ export function normalizeState(input: unknown): DragonState {
     debts,
     wishes,
     pets,
-    investments: Array.isArray(source.investments) ? source.investments : seed.investments,
+    journey,
+    investments: Array.isArray(source.investments) ? source.investments.map((position) => ({
+      ...position,
+      marketPrice: position.marketPrice ?? position.unitPrice,
+      quoteSource: position.quoteSource ?? "manual" as const,
+      lastQuoteAt: position.lastQuoteAt ?? position.updatedAt,
+      dividendYield: position.dividendYield ?? 0,
+      dividendFrequency: position.dividendFrequency ?? "irregular" as const,
+    })) : seed.investments,
     projections: {
       ...seed.projections,
       ...source.projections,

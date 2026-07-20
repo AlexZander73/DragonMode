@@ -1,7 +1,7 @@
 import { normalizeState, type DragonState } from "./data";
 
 const DB_NAME = "dragon-mode-vault";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const STORE = "app-state";
 const STATE_KEY = "primary";
 
