@@ -281,6 +281,7 @@ export function getActiveQuests(state: DragonState): Quest[] {
 }
 
 export function addProgressionXp(state: DragonState, amount: number, milestone?: string) {
+  if (milestone && (state.progression.rewardEventIds.includes(milestone) || state.progression.milestones.includes(milestone))) return state.progression;
   const xp = state.progression.xp + amount;
   let level = state.progression.level;
   let nextLevelXp = state.progression.nextLevelXp;
@@ -307,6 +308,9 @@ export function addProgressionXp(state: DragonState, amount: number, milestone?:
     milestones: milestone && !state.progression.milestones.includes(milestone)
       ? [...state.progression.milestones, milestone]
       : state.progression.milestones,
+    rewardEventIds: milestone
+      ? [...state.progression.rewardEventIds, milestone]
+      : state.progression.rewardEventIds,
   };
 }
 

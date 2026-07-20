@@ -10,6 +10,28 @@ export type Chamber = {
   sortOrder: number;
 };
 
+export type BalanceSnapshot = {
+  id: string;
+  accountId: string;
+  balance: number;
+  capturedAt: string;
+  source: "manual" | "import" | "reconciliation";
+  importBatchId?: string;
+  confirmed: boolean;
+};
+
+export type RatePeriod = {
+  id: string;
+  startsAt: string;
+  endsAt?: string;
+  baseApy: number;
+  promotionalApy?: number;
+  bonusApy?: number;
+  bonusStatus?: "met" | "not-met" | "unknown";
+  label?: string;
+  confirmedAt?: string;
+};
+
 export type Account = {
   id: string;
   name: string;
@@ -24,6 +46,21 @@ export type Account = {
   promotionalApy?: number;
   promotionStart?: string;
   promotionEnd?: string;
+  bonusApy?: number;
+  bonusConditions?: string;
+  bonusStatus?: "met" | "not-met" | "unknown";
+  interestPaymentFrequency?: "monthly" | "quarterly" | "annual" | "maturity" | "unknown";
+  nextInterestDate?: string;
+  rateHistory?: RatePeriod[];
+  balanceSnapshots?: BalanceSnapshot[];
+  lastConfirmedBalance?: number;
+  lastConfirmedAt?: string;
+  importedThrough?: string;
+  reconciliationStatus?: "reconciled" | "approximate" | "needs-review" | "stale";
+  reconciliationDifference?: number;
+  maturityDate?: string;
+  earlyWithdrawalNoticeDays?: number;
+  earlyWithdrawalNote?: string;
   includedInHoard: boolean;
   chamberId: string;
   icon: string;
@@ -52,7 +89,153 @@ export type Transaction = {
   createdManually: boolean;
   transfer?: boolean;
   transferToAccountId?: string;
+  transferPairId?: string;
   incomeSourceId?: string;
+  origin?: "manual" | "import" | "connected" | "generated-adjustment";
+  importBatchId?: string;
+  importCandidateId?: string;
+  originalDescription?: string;
+  rawSourceRow?: string;
+  sourceTransactionId?: string;
+  sourceFingerprint?: string;
+  occurrenceIndex?: number;
+  authorizedDate?: string;
+  postedDate?: string;
+  matchLineage?: string[];
+  ruleIds?: string[];
+  confidence?: number;
+  reconciliationId?: string;
+};
+
+export type ImportSourceKind = "paste" | "csv" | "ofx" | "qfx" | "qif" | "json-backup" | "shared-file" | "statement-text";
+export type ImportCandidateAction = "add" | "match" | "replace-pending" | "skip-exact" | "hold" | "ignore";
+export type ImportResolution = "both-happened" | "one-is-echo" | "pending-posted" | "confirm-transfer" | "not-sure" | "keep" | "ignore";
+
+export type ImportedCandidate = {
+  id: string;
+  batchId: string;
+  rawSourceRow: string;
+  rawRowNumber: number;
+  sourceTransactionId?: string;
+  date: string;
+  authorizedDate?: string;
+  postedDate?: string;
+  amount: number;
+  currency: string;
+  direction: "income" | "expense";
+  status: "pending" | "cleared";
+  originalDescription: string;
+  normalizedMerchant: string;
+  accountId: string;
+  categorySuggestion: string;
+  fieldConfidence: { date: number; amount: number; merchant: number; account: number };
+  confidence: number;
+  lifecycleRelationship?: "pending-posted" | "refund" | "reversal";
+  matchedTransactionId?: string;
+  transferCandidateId?: string;
+  duplicateClusterId?: string;
+  duplicateReasons: string[];
+  fingerprint: string;
+  occurrenceIndex: number;
+  proposedAction: ImportCandidateAction;
+  resolution?: ImportResolution;
+  resolvedAt?: string;
+  committedTransactionId?: string;
+};
+
+export type ImportUndoSnapshot = {
+  accounts: Account[];
+  chambers: Chamber[];
+  transactions: Transaction[];
+  reconciliations: ReconciliationRecord[];
+};
+
+export type ImportBatch = {
+  id: string;
+  sourceKind: ImportSourceKind;
+  sourceDisplayName: string;
+  sourceAccountHint?: string;
+  accountId: string;
+  createdAt: string;
+  importedAt?: string;
+  sourceHash: string;
+  parserVersion: string;
+  rawSource?: string;
+  locale: string;
+  dateOrder: "DMY" | "MDY" | "YMD";
+  signConvention: "negative-expense" | "positive-expense" | "debit-credit-columns";
+  mappingConfirmed: boolean;
+  ambiguityWarnings: string[];
+  rawRowCount: number;
+  skippedSourceRows?: Array<{ rowNumber: number; raw: string; reason: string }>;
+  candidates: ImportedCandidate[];
+  counts: { added: number; matched: number; replaced: number; skipped: number; held: number };
+  reconciliationId?: string;
+  status: "staged" | "committed" | "undone" | "abandoned";
+  undoSnapshot?: ImportUndoSnapshot;
+  receiptNote?: string;
+};
+
+export type ReconciliationRecord = {
+  id: string;
+  accountId: string;
+  importBatchId?: string;
+  periodStart?: string;
+  periodEnd: string;
+  openingBalance?: number;
+  closingBalance: number;
+  expectedClosingBalance: number;
+  movementDelta: number;
+  difference: number;
+  tolerance: number;
+  includedCandidateIds: string[];
+  excludedCandidateIds: string[];
+  status: "reconciled" | "approximate" | "unresolved";
+  confirmedAt?: string;
+  note?: string;
+};
+
+export type ImportRule = {
+  id: string;
+  name: string;
+  merchantPattern: string;
+  accountId?: string;
+  renameMerchant?: string;
+  category?: string;
+  markRecurring?: boolean;
+  includeInCashFlow?: boolean;
+  priority: number;
+  lastUsedAt?: string;
+};
+
+export type ImportMappingTemplate = {
+  id: string;
+  name: string;
+  delimiter: "," | ";" | "\t";
+  dateOrder: "DMY" | "MDY" | "YMD";
+  signConvention: ImportBatch["signConvention"];
+  columns: { date?: string; description?: string; amount?: string; debit?: string; credit?: string; status?: string; sourceId?: string };
+};
+
+export type CheckInRecord = {
+  id: string;
+  kind: "daily" | "weekly" | "pay-cycle" | "monthly";
+  completedAt: string;
+  mappedThrough?: string;
+  reviewedCandidateIds: string[];
+  rewardEventIds: string[];
+};
+
+export type RelicReveal = {
+  id: string;
+  itemId: string;
+  setId: string;
+  rarity: "common" | "rare" | "mythic";
+  mode: "surprise" | "targeted" | "crafted" | "choice";
+  revealedAt: string;
+  duplicate: boolean;
+  oddsShown: boolean;
+  eventId: string;
 };
 
 export type UsageEvent = {
@@ -145,6 +328,15 @@ export type Goal = {
   name: string;
   targetAmount: number;
   currentAmount: number;
+  declaredAmount?: number;
+  verifiedAmount?: number;
+  progressEvents?: Array<{
+    id: string;
+    amount: number;
+    source: "declared" | "linked-transaction";
+    recordedAt: string;
+    transactionId?: string;
+  }>;
   targetDate: string;
   chamberId: string;
   priority: "gentle" | "steady" | "focused";
@@ -161,6 +353,10 @@ export type InvestmentPosition = {
   units: number;
   unitPrice: number;
   contributions: number;
+  costBasis?: number;
+  feeRate?: number;
+  riskLabel?: "lower" | "medium" | "higher" | "unknown";
+  priceConfirmedAt?: string;
   annualReturnAssumption: number;
   ticker?: string;
   marketPrice?: number;
@@ -191,6 +387,12 @@ export type NotificationPreferences = {
   pets: boolean;
   weeklyReview: boolean;
   priceChanges: boolean;
+  importReview: boolean;
+  expectedIncome: boolean;
+  importantUncertainty: boolean;
+  storyChapter: boolean;
+  monthlyReview: boolean;
+  rateOrMaturity: boolean;
 };
 
 export type PetCadence = "daily" | "weekly" | "monthly";
@@ -249,6 +451,18 @@ export type JourneyChapter = {
   actionDescription: string;
   actionCategory: Quest["category"];
   goalCompletedAt?: string;
+  contentId?: string;
+  contentVersion?: number;
+  locale?: string;
+  chapterNumber?: number;
+  narrativeLayer?: "evergreen" | "chronicle" | "season" | "fallback";
+  triggerId?: string;
+  factsUsed?: string[];
+  fallbackCopy?: string;
+  accessibilitySummary?: string;
+  sourceUrls?: string[];
+  reviewedAt?: string;
+  replayable?: boolean;
 };
 
 export type IdleRewardSource = {
@@ -256,6 +470,17 @@ export type IdleRewardSource = {
   label: string;
   kind: "interest" | "dividend";
   amount: number;
+  baseAmount?: number;
+  promotionalAmount?: number;
+  bonusAmount?: number;
+  bonusStatus?: "met" | "not-met" | "unknown";
+  from?: string;
+  to?: string;
+  balanceUsed?: number;
+  annualRate?: number;
+  assumption?: string;
+  postedAmount?: number;
+  differenceFromPosted?: number;
 };
 
 export type IdleReward = {
@@ -268,6 +493,8 @@ export type IdleReward = {
   starShards: number;
   sources: IdleRewardSource[];
   claimedAt?: string;
+  keeperReward?: number;
+  estimateLabel?: string;
 };
 
 export type JourneyAvatar = {
@@ -293,6 +520,11 @@ export type DragonState = {
     hapticsEnabled: boolean;
     notificationsEnabled: boolean;
     notificationPreferences: NotificationPreferences;
+    notificationQuietStart: string;
+    notificationQuietEnd: string;
+    reviewDay: number;
+    reviewHour: number;
+    rotateOwnedSkins: boolean;
     plainLanguage: boolean;
     fontScale: number;
     tutorialComplete: boolean;
@@ -317,6 +549,36 @@ export type DragonState = {
   goals: Goal[];
   investments: InvestmentPosition[];
   pets: Pet[];
+  imports: {
+    batches: ImportBatch[];
+    reconciliations: ReconciliationRecord[];
+    rules: ImportRule[];
+    mappingTemplates: ImportMappingTemplate[];
+  };
+  checkIns: {
+    history: CheckInRecord[];
+    returnEmbers: number;
+    loreKeys: number;
+    lastDailyAt?: string;
+    lastWeeklyAt?: string;
+    lastPayCycleAt?: string;
+    lastMonthlyAt?: string;
+  };
+  education: {
+    completedLoreIds: string[];
+    savedScenarioAssumptions: Record<string, Record<string, number | string | boolean>>;
+  };
+  collection: {
+    stardust: number;
+    ownedItemIds: string[];
+    reveals: RelicReveal[];
+    pullsSinceNew: number;
+    pullsSinceMythic: number;
+    targetedSetId: string;
+    archivedSeasonIds: string[];
+    activeSeasonId?: string;
+    seasonsEnabled: boolean;
+  };
   journey: {
     enabled: boolean;
     selectedAvatarId: string;
@@ -349,12 +611,13 @@ export type DragonState = {
     unlockedCosmetics: string[];
     completedQuestCount: number;
     milestones: string[];
+    rewardEventIds: string[];
     storyChoices: Record<string, string>;
   };
   updatedAt: string;
 };
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 export const JOURNEY_AVATARS: JourneyAvatar[] = [
   { id: "asha", name: "Asha Emberwright", role: "Forge-mage", pronouns: "she/her", trait: "Turns small, steady actions into durable tools.", asset: "/journey/avatar-asha-v1.png", color: "#d87a3d" },
@@ -405,7 +668,12 @@ export const createSeedState = (): DragonState => ({
     soundEnabled: false,
     hapticsEnabled: true,
     notificationsEnabled: false,
-    notificationPreferences: { claimants: true, wishes: true, pets: true, weeklyReview: false, priceChanges: true },
+    notificationPreferences: { claimants: true, wishes: true, pets: true, weeklyReview: false, priceChanges: true, importReview: false, expectedIncome: false, importantUncertainty: false, storyChapter: false, monthlyReview: false, rateOrMaturity: false },
+    notificationQuietStart: "21:00",
+    notificationQuietEnd: "08:00",
+    reviewDay: 1,
+    reviewHour: 18,
+    rotateOwnedSkins: false,
     plainLanguage: false,
     fontScale: 1,
     tutorialComplete: false,
@@ -486,6 +754,32 @@ export const createSeedState = (): DragonState => ({
     { id: "quill", name: "Quill", species: "Scroll fox", cadence: "weekly", lastInteraction: daysAgo(3), bondXp: 78, mood: "bright", asset: "/characters/pet-quill-v1.png", color: "#d89545" },
     { id: "luna", name: "Luna", species: "Moon tortoise", cadence: "monthly", lastInteraction: daysAgo(36), bondXp: 118, mood: "waiting", asset: "/characters/pet-luna-v1.png", color: "#7774dc" },
   ],
+  imports: {
+    batches: [],
+    reconciliations: [],
+    rules: [],
+    mappingTemplates: [],
+  },
+  checkIns: {
+    history: [],
+    returnEmbers: 0,
+    loreKeys: 0,
+  },
+  education: {
+    completedLoreIds: [],
+    savedScenarioAssumptions: {},
+  },
+  collection: {
+    stardust: 0,
+    ownedItemIds: [],
+    reveals: [],
+    pullsSinceNew: 0,
+    pullsSinceMythic: 0,
+    targetedSetId: "festival-of-echoes",
+    archivedSeasonIds: [],
+    activeSeasonId: "festival-of-echoes",
+    seasonsEnabled: true,
+  },
   journey: {
     enabled: true,
     selectedAvatarId: "asha",
@@ -526,9 +820,10 @@ export const createSeedState = (): DragonState => ({
     nextLevelXp: 2000,
     title: "The Hoardkeeper",
     relics: ["Emerald Crown", "First Key", "Patient Hourglass", "Flight Compass", "Deep Vault Gem"],
-    unlockedCosmetics: ["Emerald", "Sky"],
+    unlockedCosmetics: ["Emerald", "Sky", "Sky Vault"],
     completedQuestCount: 12,
     milestones: ["first-buffer", "first-claimant", "first-rest", "first-flight", "vault-5000"],
+    rewardEventIds: [],
     storyChoices: {},
   },
   updatedAt: new Date().toISOString(),
@@ -556,6 +851,10 @@ export const createEmptyState = (): DragonState => {
     wishes: [],
     goals: [],
     investments: [],
+    imports: { batches: [], reconciliations: [], rules: [], mappingTemplates: [] },
+    checkIns: { history: [], returnEmbers: 0, loreKeys: 0 },
+    education: { completedLoreIds: [], savedScenarioAssumptions: {} },
+    collection: { ...seed.collection, stardust: 0, ownedItemIds: [], reveals: [], pullsSinceNew: 0, pullsSinceMythic: 0 },
     journey: {
       ...seed.journey,
       currentNode: 1,
@@ -587,9 +886,10 @@ export const createEmptyState = (): DragonState => {
       nextLevelXp: 200,
       title: "The New Keeper",
       relics: [],
-      unlockedCosmetics: ["Emerald", "Sky"],
+      unlockedCosmetics: ["Emerald", "Sky", "Sky Vault"],
       completedQuestCount: 0,
       milestones: [],
+      rewardEventIds: [],
       storyChoices: {},
     },
     updatedAt: new Date().toISOString(),
@@ -614,6 +914,13 @@ export function normalizeState(input: unknown): DragonState {
     archived: account.archived ?? false,
     icon: account.icon ?? "wallet",
     color: account.color ?? ["#e99a26", "#2377ca", "#2a9b54", "#d85836"][index % 4],
+    bonusStatus: account.bonusStatus ?? "unknown" as const,
+    interestPaymentFrequency: account.interestPaymentFrequency ?? "unknown" as const,
+    rateHistory: Array.isArray(account.rateHistory) ? account.rateHistory : [],
+    balanceSnapshots: Array.isArray(account.balanceSnapshots) ? account.balanceSnapshots : [],
+    lastConfirmedBalance: account.lastConfirmedBalance ?? account.balance,
+    lastConfirmedAt: account.lastConfirmedAt,
+    reconciliationStatus: account.reconciliationStatus ?? "approximate" as const,
   })) : seed.accounts;
   const fallbackAccountId = accounts[0]?.id ?? "a1";
   const transactions = Array.isArray(source.transactions) ? source.transactions.map((transaction) => ({
@@ -622,6 +929,9 @@ export function normalizeState(input: unknown): DragonState {
     note: transaction.note ?? "",
     status: transaction.status ?? "cleared" as const,
     createdManually: transaction.createdManually ?? false,
+    origin: transaction.origin ?? (transaction.createdManually ? "manual" as const : "import" as const),
+    originalDescription: transaction.originalDescription ?? transaction.merchant,
+    postedDate: transaction.postedDate ?? transaction.date,
   })) : seed.transactions;
   const subscriptions = Array.isArray(source.subscriptions) ? source.subscriptions.map((subscription) => ({
     ...subscription,
@@ -656,6 +966,9 @@ export function normalizeState(input: unknown): DragonState {
   })) : seed.wishes;
   const goals = Array.isArray(source.goals) ? source.goals.map((goal) => ({
     ...goal,
+    declaredAmount: goal.declaredAmount ?? Math.max(0, goal.currentAmount - (goal.verifiedAmount ?? 0)),
+    verifiedAmount: goal.verifiedAmount ?? 0,
+    progressEvents: Array.isArray(goal.progressEvents) ? goal.progressEvents : [],
     priority: goal.priority ?? "steady" as const,
     status: goal.status ?? "active" as const,
     visualRelicId: goal.visualRelicId ?? "star" as const,
@@ -683,6 +996,11 @@ export function normalizeState(input: unknown): DragonState {
       ...source.profile,
       onboardingComplete: source.profile.onboardingComplete ?? source.profile.tutorialComplete ?? false,
       dataMode: source.profile.dataMode ?? "demo",
+      notificationQuietStart: source.profile.notificationQuietStart ?? "21:00",
+      notificationQuietEnd: source.profile.notificationQuietEnd ?? "08:00",
+      reviewDay: source.profile.reviewDay ?? 1,
+      reviewHour: source.profile.reviewHour ?? 18,
+      rotateOwnedSkins: source.profile.rotateOwnedSkins ?? false,
       notificationPreferences: { ...seed.profile.notificationPreferences, ...(source.profile.notificationPreferences ?? {}) },
     },
     chambers,
@@ -695,8 +1013,39 @@ export function normalizeState(input: unknown): DragonState {
     goals,
     pets,
     journey,
+    imports: {
+      ...seed.imports,
+      ...(source.imports ?? {}),
+      batches: Array.isArray(source.imports?.batches) ? source.imports.batches.map((batch) => ({ ...batch, mappingConfirmed: batch.mappingConfirmed ?? true, ambiguityWarnings: Array.isArray(batch.ambiguityWarnings) ? batch.ambiguityWarnings : [], skippedSourceRows: Array.isArray(batch.skippedSourceRows) ? batch.skippedSourceRows : [] })) : [],
+      reconciliations: Array.isArray(source.imports?.reconciliations) ? source.imports.reconciliations : [],
+      rules: Array.isArray(source.imports?.rules) ? source.imports.rules : [],
+      mappingTemplates: Array.isArray(source.imports?.mappingTemplates) ? source.imports.mappingTemplates : [],
+    },
+    checkIns: {
+      ...seed.checkIns,
+      ...(source.checkIns ?? {}),
+      history: Array.isArray(source.checkIns?.history) ? source.checkIns.history : [],
+    },
+    education: {
+      ...seed.education,
+      ...(source.education ?? {}),
+      completedLoreIds: Array.isArray(source.education?.completedLoreIds) ? source.education.completedLoreIds : [],
+      savedScenarioAssumptions: source.education?.savedScenarioAssumptions ?? {},
+    },
+    collection: {
+      ...seed.collection,
+      ...(source.collection ?? {}),
+      stardust: source.collection?.stardust ?? source.journey?.starShards ?? 0,
+      ownedItemIds: Array.isArray(source.collection?.ownedItemIds) ? source.collection.ownedItemIds : [],
+      reveals: Array.isArray(source.collection?.reveals) ? source.collection.reveals : [],
+      archivedSeasonIds: Array.isArray(source.collection?.archivedSeasonIds) ? source.collection.archivedSeasonIds : [],
+    },
     investments: Array.isArray(source.investments) ? source.investments.map((position) => ({
       ...position,
+      costBasis: position.costBasis ?? position.contributions,
+      feeRate: position.feeRate ?? 0,
+      riskLabel: position.riskLabel ?? "unknown" as const,
+      priceConfirmedAt: position.priceConfirmedAt ?? position.updatedAt,
       marketPrice: position.marketPrice ?? position.unitPrice,
       quoteSource: position.quoteSource ?? "manual" as const,
       lastQuoteAt: position.lastQuoteAt ?? position.updatedAt,
@@ -711,6 +1060,7 @@ export function normalizeState(input: unknown): DragonState {
     progression: {
       ...seed.progression,
       ...(source.progression ?? {}),
+      rewardEventIds: Array.isArray(source.progression?.rewardEventIds) ? source.progression.rewardEventIds : [],
       storyChoices: { ...seed.progression.storyChoices, ...(source.progression?.storyChoices ?? {}) },
     },
     updatedAt: new Date().toISOString(),
