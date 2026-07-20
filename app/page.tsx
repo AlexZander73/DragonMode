@@ -27,6 +27,7 @@ import {
   Menu,
   MoreHorizontal,
   Orbit,
+  PawPrint,
   Plus,
   RotateCcw,
   Save,
@@ -66,17 +67,19 @@ import {
   hibernationMonths,
   monthlyTribute,
   monthlySubscriptionAmount,
+  petBondLevel,
+  petCareStatus,
   projectScenario,
   searchTransactions,
   subscriptionCostPerUse,
   totalDebt,
 } from "./calculations";
 import { APP_NAME, APP_TAGLINE, configureFormatting, formatCompactGold, formatGold, formatShortDate as formatDate, type MainTab } from "./constants";
-import { createSeedState, normalizeState, type DragonState, type InvestmentPosition, type Quest, type Subscription, type WorthRating } from "./data";
+import { createSeedState, normalizeState, type DragonState, type InvestmentPosition, type Pet, type Quest, type Subscription, type WorthRating } from "./data";
 import { notificationPermission, playFeedback, scheduleClaimantReminder, scheduleWishReminder, setupNotificationActions } from "./native";
 import { clearState, loadState, saveState } from "./storage";
 
-type Screen = "lair" | "hoard" | "quests" | "analytics" | "tribute" | "flight" | "wish" | "dragon" | "debt" | "investments" | "legacy" | "settings";
+type Screen = "lair" | "pets" | "hoard" | "quests" | "analytics" | "tribute" | "flight" | "wish" | "dragon" | "debt" | "investments" | "legacy" | "settings";
 type Sheet = { type: string; id?: string; title?: string; body?: string } | null;
 
 const ICONS: Record<string, LucideIcon> = {
@@ -92,6 +95,7 @@ const ICONS: Record<string, LucideIcon> = {
   card: CreditCard,
   cap: GraduationCap,
   car: Car,
+  wallet: WalletCards,
 };
 
 const tabDefaults: Record<MainTab, Screen> = {
@@ -104,6 +108,7 @@ const tabDefaults: Record<MainTab, Screen> = {
 
 const screenTab: Record<Screen, MainTab> = {
   lair: "lair",
+  pets: "lair",
   dragon: "lair",
   legacy: "lair",
   hoard: "hoard",
@@ -141,7 +146,7 @@ export default function DragonModeApp() {
   const [toast, setToast] = useState("");
   const [tutorialStep, setTutorialStep] = useState(0);
   const mainRef = useRef<HTMLElement>(null);
-  const scrollPositions = useRef<Record<MainTab, number>>({ lair: 0, hoard: 0, quests: 0, scrying: 0, treasury: 0 });
+  const scrollPositions = useRef<Partial<Record<Screen, number>>>({});
   configureFormatting(state.profile.preferredCurrency, state.profile.locale);
 
   useEffect(() => {
@@ -202,12 +207,12 @@ export default function DragonModeApp() {
   const summary = useMemo(() => getHoardSummary(state), [state]);
 
   const navigate = (nextScreen: Screen) => {
-    if (mainRef.current) scrollPositions.current[currentTab] = mainRef.current.scrollTop;
-    const nextTab = screenTab[nextScreen];
+    if (mainRef.current) scrollPositions.current[screen] = mainRef.current.scrollTop;
     setScreen(nextScreen);
     setSheet(null);
     window.requestAnimationFrame(() => {
-      if (mainRef.current) mainRef.current.scrollTop = scrollPositions.current[nextTab] ?? 0;
+      const isTabRoot = tabDefaults[screenTab[nextScreen]] === nextScreen;
+      if (mainRef.current) mainRef.current.scrollTop = isTabRoot ? (scrollPositions.current[nextScreen] ?? 0) : 0;
     });
   };
 
@@ -271,6 +276,7 @@ export default function DragonModeApp() {
         <main ref={mainRef} className="screen-scroll" id="main-content">
           {state.profile.plainLanguage && <PlainLanguageBar screen={screen} />}
           {screen === "lair" && <LairScreen state={state} summary={summary} navigate={navigate} setSheet={setSheet} />}
+          {screen === "pets" && <PetsScreen state={state} navigate={navigate} updateState={updateState} setToast={setToast} />}
           {screen === "hoard" && <HoardScreen state={state} summary={summary} setSheet={setSheet} />}
           {screen === "quests" && <QuestScreen state={state} completeQuest={completeQuest} navigate={navigate} updateState={updateState} setToast={setToast} setSheet={setSheet} />}
           {screen === "analytics" && <AnalyticsScreen state={state} navigate={navigate} setSheet={setSheet} />}
@@ -330,6 +336,7 @@ function ScreenHeader({ icon: Icon, title, subtitle, back, action }: { icon: Luc
 function PlainLanguageBar({ screen }: { screen: Screen }) {
   const labels: Record<Screen, string> = {
     lair: "Home · your current financial snapshot",
+    pets: "Pets · gentle daily, weekly, and monthly care",
     hoard: "Money · accounts, balances and transactions",
     quests: "Actions · optional financial tasks",
     analytics: "Insights · spending, income and trends",
@@ -355,6 +362,8 @@ function LairScreen({ state, summary, navigate, setSheet }: { state: DragonState
     { label: "Guarded", value: summary.guarded, icon: ShieldCheck, key: "guarded" },
     { label: "Invested", value: summary.invested, icon: Gem, key: "invested" },
   ];
+  const selectedPet = state.pets.find((pet) => pet.id === state.profile.selectedPetId) ?? state.pets[0];
+  const selectedPetStatus = selectedPet ? petCareStatus(selectedPet) : null;
   return (
     <section className="screen screen-lair">
       <ScreenHeader
@@ -394,6 +403,13 @@ function LairScreen({ state, summary, navigate, setSheet }: { state: DragonState
         <strong>{formatGold(summary.freeGold)}</strong>
         <small>After near-term commitments and your protected buffer</small>
       </section>
+      {selectedPet && selectedPetStatus && (
+        <button className={`pet-portal ${selectedPetStatus.due ? "pet-due" : ""}`} type="button" onClick={() => navigate("pets")}>
+          <span className="pet-portal-art" style={{ "--pet-image": `url("${selectedPet.asset}")` } as React.CSSProperties} aria-hidden="true" />
+          <span><small>Creature nook · {selectedPet.cadence}</small><strong>{selectedPet.name} {selectedPetStatus.due ? "is waiting for you" : "is happily nearby"}</strong><em>{selectedPetStatus.due ? "A gentle check-in is ready—never a penalty." : selectedPetStatus.label}</em></span>
+          <span className="pet-portal-icon"><PawPrint size={20} /><ChevronRight size={16} /></span>
+        </button>
+      )}
       <SectionTitle title="Upcoming events" action="View all" onAction={() => setSheet({ type: "events", title: "Upcoming events" })} />
       <div className="event-list">
         <button type="button" onClick={() => setSheet({ type: "event", title: "Streamkeep returns", body: `A ${formatGold(15.49)} monthly tribute arrives in 2 days. It is covered by Available Gold.` })}>
@@ -409,6 +425,56 @@ function LairScreen({ state, summary, navigate, setSheet }: { state: DragonState
       <button className="lore-card" type="button" onClick={() => setSheet({ type: "lore", title: "Gold with a job", body: "Committed Gold is money still in your account that already has a job—like a bill, debt minimum, or planned obligation before payday." })}>
         <BookOpen size={25} /><span><strong>Lore: Gold with a job</strong><small>Why Available and Free Gold are different</small></span><ChevronRight size={18} />
       </button>
+    </section>
+  );
+}
+
+function PetsScreen({ state, navigate, updateState, setToast }: { state: DragonState; navigate: (screen: Screen) => void; updateState: (updater: (state: DragonState) => DragonState) => void; setToast: (toast: string) => void }) {
+  const selected = state.pets.find((pet) => pet.id === state.profile.selectedPetId) ?? state.pets[0];
+  const selectedStatus = selected ? petCareStatus(selected) : null;
+  const tend = (pet: Pet) => {
+    updateState((previous) => {
+      const current = previous.pets.find((item) => item.id === pet.id);
+      if (!current) return previous;
+      const care = petCareStatus(current);
+      const bondGain = care.due ? 10 : 2;
+      const milestone = `pet-${current.id}-${new Date().toISOString().slice(0, 10)}`;
+      return {
+        ...previous,
+        pets: previous.pets.map((item) => item.id === current.id ? { ...item, lastInteraction: new Date().toISOString(), bondXp: item.bondXp + bondGain, mood: "bright" as const } : item),
+        progression: care.due ? addProgressionXp(previous, 5, milestone) : previous.progression,
+      };
+    });
+    playFeedback({ sound: state.profile.soundEnabled, haptics: state.profile.hapticsEnabled, kind: "success" }).catch(() => undefined);
+    setToast(`${pet.name} feels seen${petCareStatus(pet).due ? " · +5 XP" : ""}`);
+  };
+  if (!selected || !selectedStatus) return <section className="screen screen-pets"><ScreenHeader icon={PawPrint} title="Creature Nook" back={() => navigate("lair")} /><div className="empty-state"><PawPrint size={38} /><strong>The nook is quiet.</strong><p>Your companions will arrive here.</p></div></section>;
+  return (
+    <section className="screen screen-pets">
+      <ScreenHeader icon={PawPrint} title="Creature Nook" subtitle="Care that fits real life" back={() => navigate("lair")} action={<span className="bond-chip"><Heart size={14} /> Bond {petBondLevel(selected)}</span>} />
+      <section className={`pet-sanctuary ${selectedStatus.due ? "is-due" : ""}`} style={{ "--pet-accent": selected.color } as React.CSSProperties}>
+        <div className="sanctuary-runes"><i /><i /><i /><i /><i /></div>
+        <span className="sanctuary-pet" style={{ "--pet-image": `url("${selected.asset}")` } as React.CSSProperties} aria-hidden="true" />
+        <div className="sanctuary-copy"><small>{selected.species} · {selected.cadence} rhythm</small><strong>{selected.name}</strong><p>{selectedStatus.due ? `${selected.name} is ready for a gentle visit. Nothing was lost while you were away.` : `${selected.name} is settled and will invite you back when the time is right.`}</p><span>{selectedStatus.label}</span></div>
+      </section>
+      <div className="care-rhythm" aria-label="Care rhythm"><div><CalendarDays size={18} /><span><small>Daily</small><strong>Small hello</strong></span></div><div><Star size={18} /><span><small>Weekly</small><strong>Tend the nook</strong></span></div><div><Orbit size={18} /><span><small>Monthly</small><strong>Share a story</strong></span></div></div>
+      <SectionTitle title="Your companions" />
+      <div className="pet-list">
+        {state.pets.map((pet) => {
+          const care = petCareStatus(pet);
+          const level = petBondLevel(pet);
+          return (
+            <article className={`pet-card ${selected.id === pet.id ? "selected" : ""} ${care.due ? "due" : ""}`} key={pet.id} style={{ "--pet-accent": pet.color } as React.CSSProperties}>
+              <button className="pet-select" type="button" onClick={() => updateState((previous) => ({ ...previous, profile: { ...previous.profile, selectedPetId: pet.id } }))} aria-label={`Show ${pet.name}`}>
+                <span className="pet-thumb" style={{ "--pet-image": `url("${pet.asset}")` } as React.CSSProperties} aria-hidden="true" />
+                <span className="pet-card-copy"><small>{pet.cadence} · bond {level}</small><strong>{pet.name}</strong><em>{care.label}</em><i><b style={{ width: `${Math.min(100, (pet.bondXp % 35) / 35 * 100)}%` }} /></i></span>
+              </button>
+              <button className="pet-tend" type="button" onClick={() => tend(pet)}><Heart size={14} /> {care.due ? "Tend now" : "Visit"}</button>
+            </article>
+          );
+        })}
+      </div>
+      <section className="care-promise"><ShieldCheck size={25} /><span><strong>The Keeper&apos;s Promise</strong><p>Busy days do not hurt your companions. They wait without judgment, welcome you back, and every bond you earn remains yours.</p></span></section>
     </section>
   );
 }
@@ -453,16 +519,21 @@ function HoardScreen({ state, summary, setSheet }: { state: DragonState; summary
         </div>
       )}
       {view === "Accounts" && (
-        <div className="cream-list">
-          {state.accounts.filter((account) => !account.archived).map((account) => (
-            <button key={account.id} type="button" onClick={() => setSheet({ type: "account", id: account.id, title: account.name })}>
-              <span className={`round-icon ${account.type}`}><WalletCards size={20} /></span><span><strong>{account.name}</strong><small>{account.type}</small></span><b>{formatGold(account.balance)}</b><ChevronRight size={17} />
-            </button>
-          ))}
-          <button className="add-row" type="button" onClick={() => setSheet({ type: "add-account", title: "Add an account" })}><Plus size={19} /> Add account</button>
-        </div>
+        <>
+          <div className="cream-list">
+            {state.accounts.filter((account) => !account.archived).map((account) => {
+              const AccountIcon = ICONS[account.icon] ?? (account.type === "credit" ? CreditCard : account.type === "investment" ? Sprout : account.type === "savings" ? LockKeyhole : WalletCards);
+              return <button key={account.id} type="button" onClick={() => setSheet({ type: "account", id: account.id, title: account.name })}>
+                <span className={`round-icon ${account.type}`} style={{ "--account": account.color } as React.CSSProperties}><AccountIcon size={20} /></span><span><strong>{account.name}</strong><small>{account.institutionName || account.type}</small></span><b>{formatGold(account.balance)}</b><ChevronRight size={17} />
+              </button>;
+            })}
+            <button className="add-row" type="button" onClick={() => setSheet({ type: "add-account", title: "Add an account" })}><Plus size={19} /> Add account</button>
+          </div>
+          <SceneCompanion asset="/characters/pet-quill-v1.png" eyebrow="The keykeeper" title="Quill knows every vault door" body="Account names, institutions, and chamber links stay editable. The fox only keeps the map tidy." icons={[LockKeyhole, WalletCards, Landmark]} />
+        </>
       )}
       {view === "Transactions" && (
+        <>
         <div className="transaction-panel">
           <div className="transaction-search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search movements" aria-label="Search transactions" /></div>
           <div className="transaction-filters">
@@ -480,6 +551,8 @@ function HoardScreen({ state, summary, setSheet }: { state: DragonState; summary
           ))}
           {!filteredTransactions.length && <div className="empty-state"><Search size={28} /><strong>No treasure movements found.</strong><p>Try clearing one of the filters.</p></div>}
         </div>
+        <div className="ledger-seals"><span><ShieldCheck size={16} /><b>{state.transactions.filter((item) => item.reviewedAt).length}</b><small>reviewed</small></span><span><ScrollText size={16} /><b>{state.transactions.filter((item) => item.recurringSeriesId).length}</b><small>recurring</small></span><span><Star size={16} /><b>{state.transactions.filter((item) => item.worthRating).length}</b><small>worth rated</small></span></div>
+        </>
       )}
       <button className="secondary-button full" type="button" onClick={() => setSheet({ type: "reorganise", title: "Reorganise treasure" })}><Menu size={18} /> Reorganise treasure</button>
     </section>
@@ -563,6 +636,7 @@ function AnalyticsScreen({ state, navigate, setSheet }: { state: DragonState; na
       {view === "Spending" && <SimpleBarChart title="Spending by chamber" rows={spendingRows} />}
       {view === "Income" && <SimpleBarChart title="Income streams" rows={incomeRows} />}
       {view === "Trends" && <TrendPanel state={state} />}
+      {view !== "Overview" && <ScryingCompanion view={view} state={state} flow={flow} categories={categories} worth={worth} setSheet={setSheet} />}
     </section>
   );
 }
@@ -741,14 +815,18 @@ function DebtScreen({ state, navigate, setSheet, updateState, setToast }: { stat
 }
 
 function LegacyScreen({ state, navigate, setSheet }: { state: DragonState; navigate: (screen: Screen) => void; setSheet: (sheet: Sheet) => void }) {
+  const levelProgress = Math.min(100, Math.max(0, (state.progression.xp / state.progression.nextLevelXp) * 100));
   return (
     <section className="screen screen-legacy">
       <ScreenHeader icon={Crown} title="Dragon's Legacy" subtitle="Wisdom, relics, and milestones" back={() => navigate("lair")} />
-      <section className="legacy-hero"><div className="level-crest"><Crown size={23} /><strong>{state.progression.level}</strong><small>LEVEL</small></div><div><span>Level {state.progression.level}</span><strong>{state.progression.title}</strong><i><b style={{ width: `${(state.progression.xp / state.progression.nextLevelXp) * 100}%` }} /></i><small>{state.progression.xp.toLocaleString()} / {state.progression.nextLevelXp.toLocaleString()} XP</small></div><div className="legacy-chest"><Gem size={41} /></div></section>
+      <section className="legacy-hero"><div className="level-crest"><Crown size={23} /><strong>{state.progression.level}</strong><small>LEVEL</small></div><div><span>Level {state.progression.level}</span><strong>{state.progression.title}</strong><i><b style={{ width: `${levelProgress}%` }} /></i><small>{state.progression.xp.toLocaleString()} / {state.progression.nextLevelXp.toLocaleString()} XP</small></div><div className="legacy-chest"><Gem size={41} /></div></section>
       <section className="relic-panel"><SectionTitle title="Recent relics" /><div>{state.progression.relics.slice(-5).map((relic, index) => <button key={relic} type="button" onClick={() => setSheet({ type: "relic", title: relic, body: ["A permanent reminder of your first protected buffer.", "Earned for reviewing the first claimant.", "Earned for making a considered purchase decision.", "Earned for charting your first Flight Path.", `Earned when the Deep Vault crossed ${formatGold(5000, 0)}.`][index] ?? "A permanent marker of progress on your path." })}><span className={`relic relic-${index + 1}`}>{index === 0 ? <Crown /> : index === 1 ? <LockKeyhole /> : index === 2 ? <Orbit /> : index === 3 ? <Telescope /> : <Gem />}</span><small>{relic}</small></button>)}</div></section>
-      <button className="story-card" type="button" onClick={() => setSheet({ type: "story", title: "The Ancient Guardian", body: "Beyond the next ridge, an older guardian waits beside a vault that has not opened for centuries. Reach Level 10 to continue." })}><div className="story-art"><Sparkles size={31} /></div><span><small>Next title reward</small><strong>Reach Level 10</strong><p>The Ancient Guardian</p><i><b style={{ width: "67%" }} /></i></span><ChevronRight size={19} /></button>
+      <SectionTitle title="Living chapters" />
+      <button className="story-card story-celebration" type="button" onClick={() => setSheet({ type: "story-scene", id: "vault-answers", title: "The Vault Answers" })}><div className="story-art"><span className="story-character moss" /></div><span><small>Milestone story · ready</small><strong>The Vault Answers</strong><p>Celebrate the path already travelled.</p><i><b style={{ width: `${Math.max(38, levelProgress)}%` }} /></i></span><ChevronRight size={19} /></button>
+      <button className="story-card story-resilience" type="button" onClick={() => setSheet({ type: "story-scene", id: "narrow-pass", title: "The Narrow Pass" })}><div className="story-art"><span className="story-character wizard" /></div><span><small>Resilience story · always available</small><strong>The Narrow Pass</strong><p>A hard month is not the end of the road.</p><i><b style={{ width: "100%" }} /></i></span><ChevronRight size={19} /></button>
+      <div className="level-roadmap"><button type="button" onClick={() => setSheet({ type: "story-scene", id: "vault-answers", title: "The Hoardkeeper" })}><span><ShieldCheck size={18} /></span><small>Level 8</small><strong>Hoardkeeper</strong></button><button type="button" onClick={() => setSheet({ type: "story", title: "Level 9 · Vaultwarden", body: "The next title recognises steady reviews, protected buffers, pet bonds, and considered choices—not the size of a balance." })}><span><LockKeyhole size={18} /></span><small>Level 9</small><strong>Vaultwarden</strong></button><button type="button" onClick={() => setSheet({ type: "story-scene", id: "ancient-guardian", title: "The Ancient Guardian" })}><span><Crown size={18} /></span><small>Level 10</small><strong>Ancient Guardian</strong></button></div>
       <section className="milestones"><SectionTitle title="Milestone path" /><div><span className="done"><Check /></span><i /><span className="done"><Check /></span><i /><span className="current">8</span><i /><span>9</span><i /><span>10</span></div></section>
-      <p className="supportive-copy">Relics are permanent. A difficult month can change the path, but never erases what you learned.</p>
+      <p className="supportive-copy">Relics, bonds, and titles are permanent. A difficult month can change the path, but never erases what you learned—and the story will never give up on you.</p>
     </section>
   );
 }
@@ -804,7 +882,20 @@ function Segmented({ options, value, onChange, compact = false }: { options: str
 }
 
 function SectionTitle({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
-  return <div className="section-title"><h2>{title}</h2>{action && <button type="button" onClick={onAction}>{action} <ChevronRight size={15} /></button>}</div>;
+  return <div className="section-title"><span><i><Gem size={11} /></i><h2>{title}</h2></span>{action && <button type="button" onClick={onAction}>{action} <ChevronRight size={15} /></button>}</div>;
+}
+
+function SceneCompanion({ asset, eyebrow, title, body, icons }: { asset: string; eyebrow: string; title: string; body: string; icons: LucideIcon[] }) {
+  return <section className="scene-companion"><span className="scene-character" style={{ "--scene-character": `url("${asset}")` } as React.CSSProperties} aria-hidden="true" /><div><small>{eyebrow}</small><strong>{title}</strong><p>{body}</p><span className="companion-icons">{icons.map((Icon, index) => <i key={index}><Icon size={15} /></i>)}</span></div></section>;
+}
+
+function ScryingCompanion({ view, state, flow, categories, worth, setSheet }: { view: string; state: DragonState; flow: ReturnType<typeof getMonthlyFlow>; categories: ReturnType<typeof getCategoryBreakdown>; worth: ReturnType<typeof getWorthSummary>; setSheet: (sheet: Sheet) => void }) {
+  const copy = view === "Spending"
+    ? { eyebrow: "Pool reading", title: "Patterns need context", body: categories[0] ? `${categories[0].label} is largest, but only you know whether this month was ordinary.` : "More cleared movements will give the pool a clearer reflection." }
+    : view === "Income"
+      ? { eyebrow: "Income constellation", title: "Every stream strengthens the map", body: `${flow.transactions.filter((item) => item.direction === "income").length} income movements are visible this month. Irregular income still belongs in the story.` }
+      : { eyebrow: "Six-month watch", title: "A line can bend without breaking", body: "A difficult month is information, not a verdict. The next useful step can be very small." };
+  return <section className="scrying-companion"><span className="scrying-guardian" aria-hidden="true" /><div><small>{copy.eyebrow}</small><strong>{copy.title}</strong><p>{copy.body}</p><button type="button" onClick={() => setSheet({ type: "worth", title: "Worth the Gold" })}><Star size={15} /> {worth.rated ? `${worth.rated} purchases reflected on` : "Add a value reflection"} <ChevronRight size={15} /></button></div><div className="scrying-runes"><span><Coins size={15} /><b>{formatGold(flow.inflow, 0)}</b></span><span><ShieldCheck size={15} /><b>{state.transactions.filter((item) => item.reviewedAt).length} safe</b></span><span><Sparkles size={15} /><b>{categories.length} paths</b></span></div></section>;
 }
 
 function SimpleBarChart({ title, rows }: { title: string; rows: Array<{ label: string; value: number; percent: number }> }) {
@@ -838,10 +929,11 @@ function Modal({ sheet, state, updateState, setSheet, logUse, setToast, navigate
   }, [setSheet]);
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSheet(null); }}>
-      <section ref={dialogRef} className="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <section ref={dialogRef} className={`modal-sheet ${sheet.type === "story-scene" ? "story-modal" : ""}`} role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div className="modal-grip" />
         <header><h2 id="modal-title">{sheet.title}</h2><button type="button" aria-label="Close" onClick={() => setSheet(null)}><X size={20} /></button></header>
         {sheet.body && <p className="modal-body-copy">{sheet.body}</p>}
+        {sheet.type === "story-scene" && <StoryScene storyId={sheet.id ?? "vault-answers"} state={state} updateState={updateState} setToast={setToast} setSheet={setSheet} />}
         {sheet.type === "metric" && <MetricDetail id={sheet.id ?? ""} state={state} />}
         {sheet.type === "events" && <div className="modal-list"><button type="button">Streamkeep · in 2 days <b>{formatGold(15.49)}</b></button><button type="button">Lair Energy · in 5 days <b>{formatGold(87.12)}</b></button><button type="button">Skyforge payday · in 8 days <b>+{formatGold(3240, 0)}</b></button><button type="button">Ember Card minimum · in 9 days <b>{formatGold(75, 0)}</b></button></div>}
         {sheet.type === "hibernation" && <div className="formula-card"><strong>{hibernation.Comfortable.toFixed(1)} months · Comfortable</strong><div className="detail-grid"><div><span>Essential</span><strong>{hibernation.Essential.toFixed(1)} mo</strong></div><div><span>Comfortable</span><strong>{hibernation.Comfortable.toFixed(1)} mo</strong></div><div><span>Current lifestyle</span><strong>{hibernation["Current lifestyle"].toFixed(1)} mo</strong></div></div><p>Deep Vault reserves ({formatGold(getHoardSummary(state).guarded)}) ÷ the monthly cost for each mode.</p><small>This is an estimate, not financial advice.</small></div>}
@@ -866,6 +958,48 @@ function Modal({ sheet, state, updateState, setSheet, logUse, setToast, navigate
       </section>
     </div>
   );
+}
+
+function StoryScene({ storyId, state, updateState, setToast, setSheet }: { storyId: string; state: DragonState; updateState: (updater: (state: DragonState) => DragonState) => void; setToast: (toast: string) => void; setSheet: (sheet: Sheet) => void }) {
+  const scenes = {
+    "vault-answers": {
+      speaker: "Moss",
+      asset: "/characters/moss-standing-v1.png",
+      eyebrow: "Milestone chapter",
+      opening: `The vault did not open because the hoard was perfect. It opened because you returned, paid attention, and protected what mattered. Level ${state.progression.level} carries every one of those choices.`,
+      ending: "The emerald doors answer with a warm light. Nothing you earned here can be taken by a difficult month.",
+      choices: ["Name the win I am proudest of", "Carry a relic into the next chapter", "Celebrate quietly with Moss"],
+    },
+    "narrow-pass": {
+      speaker: "Orin, Flight Keeper",
+      asset: "/characters/flight-wizard-v2.png",
+      eyebrow: "Resilience chapter",
+      opening: "The path has narrowed. That can feel frightening—but narrow is not closed. We do not need to solve the whole mountain tonight. We only need one kind next step, and rest is allowed.",
+      ending: "Orin redraws the map around your real life. The route is gentler now, and hope remains part of the plan.",
+      choices: ["Protect the next seven days", "Ask Moss to stand watch", "Rest, then return when I can"],
+    },
+    "ancient-guardian": {
+      speaker: "Orin, Flight Keeper",
+      asset: "/characters/flight-wizard-v2.png",
+      eyebrow: state.progression.level >= 10 ? "Title chapter · unlocked" : "A future chapter",
+      opening: state.progression.level >= 10 ? "The old door recognises you—not by wealth, but by the patience, honesty, and care you carried here. The title of Ancient Guardian is yours." : "Beyond the ridge, an old door waits for Level 10. It is not withholding approval. It is simply saving a celebration for the keeper you are already becoming.",
+      ending: "The future vault leaves a small light burning at the horizon. You are welcome on the path at every pace.",
+      choices: ["Keep the light in sight", "Read the lessons already earned", "Walk at my own pace"],
+    },
+  } as const;
+  const scene = scenes[storyId as keyof typeof scenes] ?? scenes["vault-answers"];
+  const savedChoice = state.progression.storyChoices[storyId];
+  const [choice, setChoice] = useState(savedChoice ?? "");
+  const choose = (nextChoice: string) => {
+    setChoice(nextChoice);
+    updateState((previous) => {
+      const firstReading = !previous.progression.storyChoices[storyId];
+      const progression = firstReading ? addProgressionXp(previous, 8, `story-${storyId}`) : previous.progression;
+      return { ...previous, progression: { ...progression, storyChoices: { ...progression.storyChoices, [storyId]: nextChoice } } };
+    });
+    setToast(savedChoice ? "Chapter choice updated" : "Chapter carried forward · +8 XP");
+  };
+  return <div className={`visual-novel scene-${storyId}`}><div className="novel-stage"><span className="novel-moon" /><span className="novel-character" style={{ "--novel-character": `url("${scene.asset}")` } as React.CSSProperties} aria-hidden="true" /><span className="novel-place">{scene.eyebrow}</span></div><div className="dialogue-box"><small>{scene.speaker}</small><p>{choice ? scene.ending : scene.opening}</p></div>{!choice ? <div className="story-choices">{scene.choices.map((item) => <button type="button" key={item} onClick={() => choose(item)}><Sparkles size={15} /><span>{item}</span><ChevronRight size={16} /></button>)}</div> : <div className="story-resolution"><span><Check size={18} /></span><div><small>You chose</small><strong>{choice}</strong><p>You may revisit and choose again. The XP and lesson remain permanent.</p></div><button type="button" onClick={() => setChoice("")}>Choose again</button></div>}<button className="primary-button full" type="button" onClick={() => setSheet(null)}>{choice ? "Carry this chapter with me" : "Return to the legacy"}</button></div>;
 }
 
 function MetricDetail({ id, state }: { id: string; state: DragonState }) {

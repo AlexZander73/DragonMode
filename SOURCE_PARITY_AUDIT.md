@@ -33,9 +33,20 @@ quests, analytics, projections, Dragon's Rest, debts, investments, XP,
 permanent relics, accessibility preferences, JSON import/export, and a native
 Capacitor shell.
 
+The companion add-on is also implemented. Cinder, Quill, and Luna use daily,
+weekly, and monthly care rhythms respectively; care and bond state persist, and
+missing a visit never removes progress or harms a companion. Financial progress
+now advances permanent keeper levels and opens illustrated, choice-based story
+scenes. Both celebration and setback stories resolve with specific, hopeful
+next steps and can be revisited.
+
 The July visual-integration pass also establishes one shared rule for every
 referenced and unreferenced view: environmental art is full-bleed or dissolved
 into the screen; bounded cream panels are reserved for dense financial data.
+Empty vertical space on modern phones is filled with environmental texture,
+overlapping character silhouettes, small rune/stat clusters, or continued
+content—not extra generic boxes. The full character cast is also available as
+transparent cutouts for reuse and restrained motion.
 
 ## Remaining product-spec gaps
 
@@ -55,8 +66,6 @@ These are functional depth gaps, not missing reference screens:
   separate editable fields.
 - Projection controls do not yet expose savings and investment contributions as
   independent scenario sliders, and there is no arbitrary custom date range.
-- Story milestones open concise scenes but do not yet present a persistent user
-  choice or supporting-character dialogue.
 - Lore coverage is representative rather than complete for every topic listed
   in the source document.
 - Notification categories cover claimant, wish, price-change, and review flows;

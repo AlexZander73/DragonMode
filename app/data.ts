@@ -160,6 +160,20 @@ export type NotificationPreferences = {
   priceChanges: boolean;
 };
 
+export type PetCadence = "daily" | "weekly" | "monthly";
+
+export type Pet = {
+  id: string;
+  name: string;
+  species: string;
+  cadence: PetCadence;
+  lastInteraction: string;
+  bondXp: number;
+  mood: "bright" | "waiting" | "resting";
+  asset: string;
+  color: string;
+};
+
 export type DragonState = {
   schemaVersion: number;
   profile: {
@@ -183,6 +197,7 @@ export type DragonState = {
     comfortableMonthlyCost: number;
     essentialMonthlyCost: number;
     lifestyleMonthlyCost: number;
+    selectedPetId: string;
   };
   chambers: Chamber[];
   accounts: Account[];
@@ -192,6 +207,7 @@ export type DragonState = {
   debts: Debt[];
   wishes: Wish[];
   investments: InvestmentPosition[];
+  pets: Pet[];
   projections: {
     rangeMonths: number;
     activeScenario: string;
@@ -206,11 +222,12 @@ export type DragonState = {
     unlockedCosmetics: string[];
     completedQuestCount: number;
     milestones: string[];
+    storyChoices: Record<string, string>;
   };
   updatedAt: string;
 };
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 const daysFromNow = (days: number) => {
   const date = new Date();
@@ -263,6 +280,7 @@ export const createSeedState = (): DragonState => ({
     comfortableMonthlyCost: 1706.5,
     essentialMonthlyCost: 1296,
     lifestyleMonthlyCost: 3240,
+    selectedPetId: "cinder",
   },
   chambers: [
     { id: "hearth", name: "The Hearth", practicalName: "Everyday living", amount: 6240.3, target: 6800, color: "#ef4b24", icon: "flame", type: "essential", sortOrder: 0 },
@@ -321,6 +339,11 @@ export const createSeedState = (): DragonState => ({
     { id: "i1", accountId: "a3", name: "Northstar Balanced Fund", type: "fund", units: 104.72, unitPrice: 58.25, contributions: 5400, annualReturnAssumption: 5.5, note: "Long-term diversified holding.", updatedAt: daysAgo(1) },
     { id: "i2", accountId: "a3", name: "Retirement Reserve", type: "retirement", units: 1, unitPrice: 2550, contributions: 2380, annualReturnAssumption: 5, note: "Manually tracked retirement balance.", updatedAt: daysAgo(3) },
   ],
+  pets: [
+    { id: "cinder", name: "Cinder", species: "Ember sprite", cadence: "daily", lastInteraction: daysAgo(2), bondXp: 42, mood: "waiting", asset: "/characters/pet-cinder-v1.png", color: "#ef6a22" },
+    { id: "quill", name: "Quill", species: "Scroll fox", cadence: "weekly", lastInteraction: daysAgo(3), bondXp: 78, mood: "bright", asset: "/characters/pet-quill-v1.png", color: "#d89545" },
+    { id: "luna", name: "Luna", species: "Moon tortoise", cadence: "monthly", lastInteraction: daysAgo(36), bondXp: 118, mood: "waiting", asset: "/characters/pet-luna-v1.png", color: "#7774dc" },
+  ],
   projections: {
     rangeMonths: 12,
     activeScenario: "Current Flight",
@@ -340,6 +363,7 @@ export const createSeedState = (): DragonState => ({
     unlockedCosmetics: ["Emerald", "Sky"],
     completedQuestCount: 12,
     milestones: ["first-buffer", "first-claimant", "first-rest", "first-flight", "vault-5000"],
+    storyChoices: {},
   },
   updatedAt: new Date().toISOString(),
 });
@@ -398,6 +422,10 @@ export function normalizeState(input: unknown): DragonState {
     desiredDate: wish.desiredDate ?? wish.endsAt,
     fundingSource: wish.fundingSource ?? "Free Gold",
   })) : seed.wishes;
+  const pets = Array.isArray(source.pets) ? source.pets.map((pet, index) => ({
+    ...seed.pets[index % seed.pets.length],
+    ...pet,
+  })) : seed.pets;
 
   return {
     ...seed,
@@ -415,13 +443,18 @@ export function normalizeState(input: unknown): DragonState {
     quests,
     debts,
     wishes,
+    pets,
     investments: Array.isArray(source.investments) ? source.investments : seed.investments,
     projections: {
       ...seed.projections,
       ...source.projections,
       scenarios: { ...seed.projections.scenarios, ...(source.projections?.scenarios ?? {}) },
     },
-    progression: { ...seed.progression, ...(source.progression ?? {}) },
+    progression: {
+      ...seed.progression,
+      ...(source.progression ?? {}),
+      storyChoices: { ...seed.progression.storyChoices, ...(source.progression?.storyChoices ?? {}) },
+    },
     updatedAt: new Date().toISOString(),
   };
 }

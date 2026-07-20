@@ -8,6 +8,8 @@ import {
   getHoardSummary,
   monthlySubscriptionAmount,
   monthlyTribute,
+  petBondLevel,
+  petCareStatus,
   projectScenario,
   searchTransactions,
 } from "../app/calculations";
@@ -80,6 +82,15 @@ test("XP awards preserve permanent milestones and unlock level rewards", () => {
   assert.ok(progression.milestones.includes("test-milestone"));
 });
 
+test("pet care cadences become due without punishing bond progress", () => {
+  const state = createSeedState();
+  const daily = { ...state.pets[0], lastInteraction: new Date(Date.now() - 2 * 86_400_000).toISOString() };
+  const weekly = { ...state.pets[1], lastInteraction: new Date(Date.now() - 3 * 86_400_000).toISOString() };
+  assert.equal(petCareStatus(daily).due, true);
+  assert.equal(petCareStatus(weekly).due, false);
+  assert.ok(petBondLevel({ ...daily, bondXp: daily.bondXp + 40 }) >= petBondLevel(daily));
+});
+
 test("search and schema migration retain usable local data", () => {
   const state = createSeedState();
   assert.equal(searchTransactions(state.transactions, "groceries").length, 2);
@@ -90,4 +101,6 @@ test("search and schema migration retain usable local data", () => {
   assert.equal(migrated.schemaVersion, SCHEMA_VERSION);
   assert.ok(migrated.investments.length > 0);
   assert.ok(migrated.accounts.every((account) => account.icon && account.color));
+  assert.equal(migrated.pets.length, 3);
+  assert.deepEqual(migrated.progression.storyChoices, {});
 });

@@ -1,6 +1,25 @@
-import type { Debt, DragonState, ProjectionScenario, Quest, Subscription, SubscriptionCadence, Transaction } from "./data";
+import type { Debt, DragonState, Pet, PetCadence, ProjectionScenario, Quest, Subscription, SubscriptionCadence, Transaction } from "./data";
 
 const DAY_MS = 86_400_000;
+
+export const petCadenceDays: Record<PetCadence, number> = { daily: 1, weekly: 7, monthly: 30 };
+
+export function petCareStatus(pet: Pet, now = Date.now()) {
+  const elapsedDays = Math.max(0, Math.floor((now - new Date(pet.lastInteraction).getTime()) / DAY_MS));
+  const intervalDays = petCadenceDays[pet.cadence];
+  const due = elapsedDays >= intervalDays;
+  const daysRemaining = Math.max(0, intervalDays - elapsedDays);
+  const overdueDays = Math.max(0, elapsedDays - intervalDays);
+  return {
+    due,
+    elapsedDays,
+    daysRemaining,
+    overdueDays,
+    label: due ? (overdueDays ? `Ready for ${overdueDays} ${overdueDays === 1 ? "day" : "days"}` : "Ready today") : `Returns in ${daysRemaining} ${daysRemaining === 1 ? "day" : "days"}`,
+  };
+}
+
+export const petBondLevel = (pet: Pet) => Math.min(5, Math.max(1, Math.floor(pet.bondXp / 35) + 1));
 
 const monthBounds = (offset = 0) => {
   const now = new Date();
@@ -263,7 +282,7 @@ export function addProgressionXp(state: DragonState, amount: number, milestone?:
     xp,
     level,
     nextLevelXp,
-    title: level >= 10 ? "The Ancient Guardian" : state.progression.title,
+    title: level >= 10 ? "The Ancient Guardian" : level >= 9 ? "The Vaultwarden" : state.progression.title,
     relics,
     unlockedCosmetics,
     milestones: milestone && !state.progression.milestones.includes(milestone)
