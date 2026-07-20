@@ -1,5 +1,6 @@
 import type { Debt, DragonState, Pet, PetCadence, ProjectionScenario, Quest, Subscription, SubscriptionCadence, Transaction } from "./data";
 import { journeyQuest } from "./journey";
+import { financialAssetTotal } from "./ledger";
 
 const DAY_MS = 86_400_000;
 
@@ -21,6 +22,18 @@ export function petCareStatus(pet: Pet, now = Date.now()) {
 }
 
 export const petBondLevel = (pet: Pet) => Math.min(5, Math.max(1, Math.floor(pet.bondXp / 35) + 1));
+
+export const LEVEL_REWARDS: Record<number, { title: string; relic: string; cosmetic: string }> = {
+  2: { title: "The First Cartographer", relic: "Emberglass Key", cosmetic: "Ember Library" },
+  3: { title: "The Chamber Tender", relic: "Moon Garden Banner", cosmetic: "Moon Garden" },
+  4: { title: "The Patient Listener", relic: "Quill's Compass", cosmetic: "Sapphire" },
+  5: { title: "The Hearthwarden", relic: "Hearthstone Crown", cosmetic: "Ember" },
+  6: { title: "The Sky Reader", relic: "Skyvault Orrery", cosmetic: "Sky Vault" },
+  7: { title: "The Chainbreaker", relic: "Chainbreaker Seal", cosmetic: "Amethyst" },
+  8: { title: "The Hoardkeeper", relic: "Emerald Ward", cosmetic: "Emerald" },
+  9: { title: "The Vaultwarden", relic: "Vaultwarden Lantern", cosmetic: "Vault Aurora" },
+  10: { title: "The Ancient Guardian", relic: "Ancient Guardian Crown", cosmetic: "Silver Trail" },
+};
 
 const monthBounds = (offset = 0) => {
   const now = new Date();
@@ -57,7 +70,7 @@ export function getHoardSummary(state: DragonState) {
   const guarded = state.chambers.find((chamber) => chamber.id === "vault")?.amount ?? 0;
   const investedPositions = state.investments.reduce((sum, position) => sum + position.units * position.unitPrice, 0);
   const invested = investedPositions || state.chambers.find((chamber) => chamber.id === "sleep")?.amount || 0;
-  const total = state.chambers.reduce((sum, chamber) => sum + chamber.amount, 0);
+  const total = financialAssetTotal(state);
   const freeGoldRaw = available - committed - state.profile.minimumBuffer;
   const freeGold = Math.max(0, freeGoldRaw);
   return { available, committed, guarded, invested, total, freeGold, freeGoldRaw };
@@ -98,8 +111,8 @@ export function currentMonthTransactions(state: DragonState) {
 
 export function getMonthlyFlow(state: DragonState, offset = 0) {
   const transactions = transactionsForMonth(state, offset);
-  const inflow = transactions.filter((item) => item.direction === "income" && item.status === "cleared").reduce((sum, item) => sum + item.amount, 0);
-  const outflow = transactions.filter((item) => item.direction === "expense" && item.status === "cleared").reduce((sum, item) => sum + item.amount, 0);
+  const inflow = transactions.filter((item) => item.direction === "income" && item.status === "cleared" && !item.transfer).reduce((sum, item) => sum + item.amount, 0);
+  const outflow = transactions.filter((item) => item.direction === "expense" && item.status === "cleared" && !item.transfer).reduce((sum, item) => sum + item.amount, 0);
   return { inflow, outflow, net: inflow - outflow, transactions };
 }
 
@@ -115,7 +128,7 @@ export function getMonthlyTrend(state: DragonState, months = 6) {
 
 export function getCategoryBreakdown(state: DragonState, offset = 0) {
   const totals = new Map<string, number>();
-  transactionsForMonth(state, offset).filter((item) => item.direction === "expense" && item.status === "cleared").forEach((item) => {
+  transactionsForMonth(state, offset).filter((item) => item.direction === "expense" && item.status === "cleared" && !item.transfer).forEach((item) => {
     totals.set(item.category, (totals.get(item.category) ?? 0) + item.amount);
   });
   const rows = [...totals.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
@@ -276,17 +289,19 @@ export function addProgressionXp(state: DragonState, amount: number, milestone?:
   while (xp >= nextLevelXp) {
     level += 1;
     nextLevelXp += 250 + level * 50;
-    const relic = `Level ${level} Sigil`;
+    const reward = LEVEL_REWARDS[level] ?? { title: `Starwarden · Rank ${level}`, relic: `Starforged Sigil ${level}`, cosmetic: level % 2 === 0 ? "Amethyst" : "Ember" };
+    const relic = reward.relic;
     if (!relics.includes(relic)) relics.push(relic);
-    const cosmetic = level % 2 === 0 ? "Amethyst" : "Ember";
+    const cosmetic = reward.cosmetic;
     if (!unlockedCosmetics.includes(cosmetic)) unlockedCosmetics.push(cosmetic);
   }
+  const reward = LEVEL_REWARDS[level];
   return {
     ...state.progression,
     xp,
     level,
     nextLevelXp,
-    title: level >= 10 ? "The Ancient Guardian" : level >= 9 ? "The Vaultwarden" : state.progression.title,
+    title: reward?.title ?? (level > 10 ? `Starwarden · Rank ${level}` : state.progression.title),
     relics,
     unlockedCosmetics,
     milestones: milestone && !state.progression.milestones.includes(milestone)

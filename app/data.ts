@@ -51,6 +51,7 @@ export type Transaction = {
   worthRating?: WorthRating;
   createdManually: boolean;
   transfer?: boolean;
+  transferToAccountId?: string;
   incomeSourceId?: string;
 };
 
@@ -119,6 +120,7 @@ export type Debt = {
   progress: number;
   strategyOrder: number;
   targetExtraPayment: number;
+  accountId?: string;
   icon: string;
 };
 
@@ -133,6 +135,8 @@ export type Wish = {
   fundingSource: string;
   reason: string;
   status: "resting" | "claimed" | "saved" | "released";
+  goalId?: string;
+  transactionId?: string;
   finalWorthRating?: WorthRating;
 };
 
@@ -184,6 +188,7 @@ export type ProjectionScenario = {
 export type NotificationPreferences = {
   claimants: boolean;
   wishes: boolean;
+  pets: boolean;
   weeklyReview: boolean;
   priceChanges: boolean;
 };
@@ -349,7 +354,7 @@ export type DragonState = {
   updatedAt: string;
 };
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export const JOURNEY_AVATARS: JourneyAvatar[] = [
   { id: "asha", name: "Asha Emberwright", role: "Forge-mage", pronouns: "she/her", trait: "Turns small, steady actions into durable tools.", asset: "/journey/avatar-asha-v1.png", color: "#d87a3d" },
@@ -400,7 +405,7 @@ export const createSeedState = (): DragonState => ({
     soundEnabled: false,
     hapticsEnabled: true,
     notificationsEnabled: false,
-    notificationPreferences: { claimants: true, wishes: true, weeklyReview: false, priceChanges: true },
+    notificationPreferences: { claimants: true, wishes: true, pets: true, weeklyReview: false, priceChanges: true },
     plainLanguage: false,
     fontScale: 1,
     tutorialComplete: false,
@@ -461,9 +466,9 @@ export const createSeedState = (): DragonState => ({
     quest({ id: "q-categorise", title: "Categorise 5 Purchases", description: "Help your dragon understand where gold goes.", reason: "Clear categories make the Scrying Pool more useful.", category: "Tend", xp: 10, progress: "2 / 5", icon: "list" }),
   ],
   debts: [
-    { id: "d1", name: "Ember Credit Card", balance: 2310, principal: 3600, apr: 22.49, minimum: 75, nextDue: daysFromNow(9), progress: 68, strategyOrder: 2, targetExtraPayment: 50, icon: "card" },
-    { id: "d2", name: "Scholar's Loan", balance: 3250, principal: 5100, apr: 4.25, minimum: 95, nextDue: daysFromNow(14), progress: 64, strategyOrder: 3, targetExtraPayment: 0, icon: "cap" },
-    { id: "d3", name: "Carriage Loan", balance: 680, principal: 1180, apr: 5.8, minimum: 70, nextDue: daysFromNow(20), progress: 42, strategyOrder: 1, targetExtraPayment: 0, icon: "car" },
+    { id: "d1", name: "Ember Credit Card", balance: 2310, principal: 3600, apr: 22.49, minimum: 75, nextDue: daysFromNow(9), progress: 68, strategyOrder: 2, targetExtraPayment: 50, accountId: "a1", icon: "card" },
+    { id: "d2", name: "Scholar's Loan", balance: 3250, principal: 5100, apr: 4.25, minimum: 95, nextDue: daysFromNow(14), progress: 64, strategyOrder: 3, targetExtraPayment: 0, accountId: "a1", icon: "cap" },
+    { id: "d3", name: "Carriage Loan", balance: 680, principal: 1180, apr: 5.8, minimum: 70, nextDue: daysFromNow(20), progress: 42, strategyOrder: 1, targetExtraPayment: 0, accountId: "a1", icon: "car" },
   ],
   wishes: [
     { id: "w1", name: "Mechanical Keyboard", price: 179, restDays: 3, endsAt: daysFromNow(2), category: "Workshop", desiredDate: daysFromNow(14), fundingSource: "Free Gold", reason: "A quieter, more comfortable writing setup.", status: "resting" },
@@ -599,7 +604,9 @@ export function normalizeState(input: unknown): DragonState {
   const source = input as Partial<DragonState>;
   if (!source.profile || !Array.isArray(source.chambers)) throw new Error("Invalid Dragon Mode export");
 
-  const chambers = source.chambers.map((chamber, index) => ({ ...chamber, sortOrder: chamber.sortOrder ?? index }));
+  const chambers = source.chambers
+    .map((chamber, index) => ({ ...chamber, sortOrder: chamber.sortOrder ?? index }))
+    .filter((chamber, index, items) => items.findIndex((candidate) => candidate.id === chamber.id) === index);
   const accounts = Array.isArray(source.accounts) ? source.accounts.map((account, index) => ({
     ...account,
     compounding: account.compounding ?? (account.apy ? "daily" as const : undefined),
@@ -639,6 +646,7 @@ export function normalizeState(input: unknown): DragonState {
     principal: debt.principal ?? Math.max(debt.balance, debt.balance / Math.max(0.01, 1 - debt.progress / 100)),
     strategyOrder: debt.strategyOrder ?? index + 1,
     targetExtraPayment: debt.targetExtraPayment ?? 0,
+    accountId: debt.accountId ?? accounts.find((account) => account.type === "transaction" || account.type === "cash")?.id,
   })) : seed.debts;
   const wishes = Array.isArray(source.wishes) ? source.wishes.map((wish) => ({
     ...wish,

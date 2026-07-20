@@ -1,6 +1,6 @@
 {
-  "name": "Dragon Mode",
-  "short_name": "Dragon Mode",
+  "name": "DragonMode",
+  "short_name": "DragonMode",
   "description": "Protect your hoard. Rest easier.",
   "start_url": "/",
   "display": "standalone",

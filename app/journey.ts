@@ -170,12 +170,13 @@ export function calculateIdleReward(state: DragonState, fromValue: string, to = 
 
 const chapterCopy = (state: DragonState, snapshot: FinancialSnapshot): Omit<JourneyChapter, "id" | "dayKey" | "createdAt"> => {
   const variableIncome = state.journey.incomeSources.find((item) => item.reliability !== "steady");
+  const variation = state.journey.currentNode % 3;
   if (snapshot.direction === "rising") return {
     direction: "rising",
-    title: snapshot.debt < (state.journey.snapshots.at(-1)?.debt ?? snapshot.debt) ? "The Chain Gives Way" : "The Sunroad Opens",
-    speaker: "Asha Emberwright",
-    opening: "The road climbs because several real things moved together: assets held, obligations eased, or income arrived. We celebrate the direction without demanding that every day look like this one.",
-    ending: "Asha marks the gain on the atlas, then leaves space for ordinary days. Progress is allowed to breathe.",
+    title: snapshot.debt < (state.journey.snapshots.at(-1)?.debt ?? snapshot.debt) ? ["The Chain Gives Way", "A Link Turns Silver", "The Gate Loses Weight"][variation] : ["The Sunroad Opens", "Lanterns Above Greenwater", "The Orchard Wakes"][variation],
+    speaker: ["Asha Emberwright", "Sol Arden", "Kael Windmere"][variation],
+    opening: ["The road climbs because several real things moved together: assets held, obligations eased, or income arrived. We celebrate the direction without demanding that every day look like this one.", "A brighter constellation settles over the map. Sol names the gain, then reminds the party that ordinary days belong here too.", "A tailwind arrives. Kael measures it carefully: useful movement, never a promise that every crossing will be easy."][variation],
+    ending: ["Asha marks the gain on the atlas, then leaves space for ordinary days. Progress is allowed to breathe.", "The new light becomes a waypoint rather than a demand. It will still be here after a quieter week.", "Kael folds the map with a smile. The tailwind was used with care, and that is enough."][variation],
     choices: ["Protect part of this gain", "Aim it at the next debt marker", "Celebrate before choosing"],
     actionTitle: snapshot.debt > 0 ? "Choose the next chain marker" : "Give part of the gain a job",
     actionDescription: snapshot.debt > 0 ? "Review one debt and decide whether its next planned payment still fits." : "Choose one small amount to protect, invest, or enjoy intentionally.",
@@ -183,10 +184,10 @@ const chapterCopy = (state: DragonState, snapshot: FinancialSnapshot): Omit<Jour
   };
   if (snapshot.direction === "sheltered") return {
     direction: "sheltered",
-    title: "The Bridge After Rain",
-    speaker: "Mara Ironroot",
-    opening: "The road changed beneath us. That is information, not failure. Mara lights the nearest stones and asks only what would make the next seven days safer.",
-    ending: "The bridge does not need to be rebuilt tonight. One sound plank is enough to keep the path open.",
+    title: ["The Bridge After Rain", "Shelter at Hollow Pine", "The Lantern in the Pass"][variation],
+    speaker: ["Mara Ironroot", "Bramble Stoneheart", "Moss"][variation],
+    opening: ["The road changed beneath us. That is information, not failure. Mara lights the nearest stones and asks only what would make the next seven days safer.", "Rain closes the high trail, so Bramble opens the archive shelter. A changed route is not a lost journey; it is a reason to travel more gently.", "The pass narrows and Moss settles beside the last warm lantern. The dragon does not ask for a perfect plan—only one kind next step."][variation],
+    ending: ["The bridge does not need to be rebuilt tonight. One sound plank is enough to keep the path open.", "The storm writes no verdict. The party leaves with dry maps, a smaller pack, and every earlier victory intact.", "Moss keeps watch while the keeper rests. Hope is not postponed; it is part of the shelter."][variation],
     choices: ["Protect the next seven days", "Review one pressure point", "Rest before I decide"],
     actionTitle: "Make the next seven days gentler",
     actionDescription: "Review one upcoming bill, minimum payment, or flexible cost. Changing it is optional; seeing it clearly is the quest.",
@@ -194,10 +195,10 @@ const chapterCopy = (state: DragonState, snapshot: FinancialSnapshot): Omit<Jour
   };
   return {
     direction: "steady",
-    title: variableIncome ? "Caravans at Stillwater" : "Camp at Stillwater",
-    speaker: variableIncome ? "Pip Reedwhistle" : "Bramble Stoneheart",
-    opening: variableIncome ? `${variableIncome.name} follows a less regular road. Pip records the quiet stretch as part of the rhythm—not as missing progress.` : "The hoard held its ground. Bramble calls this a worthy chapter: a pause where plans can be checked without urgency.",
-    ending: "The lantern remains lit. Staying steady protected choices that tomorrow can use.",
+    title: variableIncome ? ["Caravans at Stillwater", "The Market Between Bells", "A Contract at Moonrise"][variation] : ["Camp at Stillwater", "The Quiet Watchtower", "Tea at the Mile Stone"][variation],
+    speaker: variableIncome ? ["Pip Reedwhistle", "Asha Emberwright", "Sol Arden"][variation] : ["Bramble Stoneheart", "Kael Windmere", "Mara Ironroot"][variation],
+    opening: variableIncome ? [`${variableIncome.name} follows a less regular road. Pip records the quiet stretch as part of the rhythm—not as missing progress.`, `The market is quiet between arrivals. Asha checks the tools and gives variable work room to be variable.`, `Sol marks ${variableIncome.name} as a constellation that appears on its own rhythm, visible even when it is not due today.`][variation] : ["The hoard held its ground. Bramble calls this a worthy chapter: a pause where plans can be checked without urgency.", "No warning bell rings from the tower. Kael uses the quiet to check one compass bearing, then lets the day remain ordinary.", "Mara pours tea beside the mile stone. A steady chapter is not empty; it is the ground that keeps future choices open."][variation],
+    ending: ["The lantern remains lit. Staying steady protected choices that tomorrow can use.", "One assumption is checked, the rest are allowed to wait. The watch remains calm.", "The party leaves the mile stone exactly where it was, carrying more clarity than before."][variation],
     choices: ["Mark the next expected income", "Check the protected buffer", "Let steady be enough today"],
     actionTitle: variableIncome ? "Mark the next likely arrival" : "Check one steady assumption",
     actionDescription: variableIncome ? "Review an irregular income source and record its best current expectation without treating it as guaranteed." : "Confirm that one recurring cost or buffer target still matches real life.",
@@ -207,7 +208,9 @@ const chapterCopy = (state: DragonState, snapshot: FinancialSnapshot): Omit<Jour
 
 export function createJourneyChapter(state: DragonState, snapshot: FinancialSnapshot, now = new Date()): JourneyChapter {
   const dayKey = journeyDayKey(now);
-  return { id: `journey-${dayKey}`, dayKey, createdAt: now.toISOString(), ...chapterCopy(state, snapshot) };
+  const copy = chapterCopy(state, snapshot);
+  const carriedChoice = latestJourneyChapter(state)?.selectedChoice;
+  return { id: `journey-${dayKey}`, dayKey, createdAt: now.toISOString(), ...copy, opening: carriedChoice ? `${copy.opening} The party remembers your earlier choice: “${carriedChoice}.”` : copy.opening };
 }
 
 function journeyChapterDue(state: DragonState, now: Date) {

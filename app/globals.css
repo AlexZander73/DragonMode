@@ -986,3 +986,191 @@ button:focus-visible, input:focus-visible, select:focus-visible, label:focus-wit
   .scrying-companion { min-height: 160px; padding-top: 14px; }.scrying-guardian { height: 68%; }.scrying-runes { display: none !important; }
   .novel-stage { height: 210px; }.dialogue-box { min-height: 88px; }.story-choices button { min-height: 35px; }
 }
+
+/* Release composition: scenery is full-bleed; reusable art sits above it. */
+.lair-moon-garden .screen-lair {
+  background: linear-gradient(180deg, #50458e 0, #183f67 34%, #11172f 100%);
+}
+.lair-ember-library .screen-lair {
+  background: linear-gradient(180deg, #8b3d2a 0, #4f2b36 34%, #17182e 100%);
+}
+.lair-moon-garden .screen-lair::after,
+.lair-ember-library .screen-lair::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 65px 0 auto;
+  height: 330px;
+  pointer-events: none;
+  opacity: .36;
+  background: radial-gradient(circle at 77% 18%, rgba(255,244,181,.5) 0 3%, transparent 18%), radial-gradient(circle at 18% 55%, rgba(167,115,255,.34), transparent 34%);
+  -webkit-mask-image: linear-gradient(#000, transparent);
+  mask-image: linear-gradient(#000, transparent);
+}
+.lair-ember-library .screen-lair::after {
+  background: radial-gradient(circle at 15% 30%, rgba(255,192,74,.42), transparent 28%), linear-gradient(115deg, rgba(147,51,23,.32), transparent 60%);
+}
+
+.daily-briefing {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid rgba(255,226,143,.3);
+  border-radius: 12px;
+  background: linear-gradient(120deg, rgba(16,70,83,.9), rgba(30,30,73,.92));
+  box-shadow: inset 0 1px rgba(255,255,255,.1), 0 9px 20px rgba(0,0,0,.2);
+}
+.briefing-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.briefing-heading > span { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #ffe589; background: radial-gradient(circle at 35% 30%, #76ddf5, #27629a 60%, #1e285d); box-shadow: 0 0 15px rgba(103,213,246,.22); }
+.briefing-heading > div { display: flex; flex-direction: column; }
+.briefing-heading small { color: #81e0ce; font-size: 7px; font-weight: 950; letter-spacing: .1em; text-transform: uppercase; }
+.briefing-heading strong { color: #fff0ae; font-size: 12px; }
+.briefing-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.briefing-grid button { min-width: 0; min-height: 68px; padding: 8px; border: 1px solid rgba(150,219,222,.22); border-radius: 9px; display: grid; grid-template-columns: 24px 1fr; gap: 6px; align-items: center; text-align: left; color: #7fe2d1; background: rgba(8,31,59,.62); cursor: pointer; }
+.briefing-grid span { min-width: 0; display: flex; flex-direction: column; }
+.briefing-grid small { color: #8faec0; font-size: 6px; text-transform: uppercase; }
+.briefing-grid strong { overflow: hidden; color: #fff2bc; font-size: 8px; white-space: nowrap; text-overflow: ellipsis; }
+.briefing-grid em { margin-top: 2px; color: #c7d8df; font-size: 7px; font-style: normal; }
+
+.screen-quests,
+.screen-scrying,
+.screen-flight,
+.screen-tribute,
+.screen-debt,
+.screen-investments,
+.screen-settings { --world-image: none; }
+
+.quest-illustration {
+  flex: 0 0 auto;
+  border: 1px solid rgba(114,67,33,.24);
+  background-color: #e7c991 !important;
+  background-image: url("/art/quest-relic-atlas-v1.png") !important;
+  background-repeat: no-repeat !important;
+  background-size: 400% 200% !important;
+  filter: drop-shadow(0 3px 3px rgba(62,31,16,.25));
+  box-shadow: inset 0 1px rgba(255,255,255,.6);
+}
+.quest-illustration svg { opacity: 0; }
+.quest-illustration.artifact-scroll { background-position: 0 0 !important; }
+.quest-illustration.artifact-shield { background-position: 33.333% 0 !important; }
+.quest-illustration.artifact-vault { background-position: 66.666% 0 !important; }
+.quest-illustration.artifact-list { background-position: 100% 0 !important; }
+.quest-illustration.artifact-star { background-position: 100% 100% !important; }
+
+.relic-art {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background-color: transparent !important;
+  background-image: url("/art/quest-relic-atlas-v1.png") !important;
+  background-repeat: no-repeat !important;
+  background-size: 400% 200% !important;
+  filter: drop-shadow(0 4px 4px rgba(0,0,0,.42));
+}
+.relic-art-0 { background-position: 0 100% !important; }
+.relic-art-1 { background-position: 33.333% 100% !important; }
+.relic-art-2 { background-position: 66.666% 100% !important; }
+.relic-art-3 { background-position: 100% 100% !important; }
+.relic-art-4 { background-position: 0 0 !important; }
+.relic-art-5 { background-position: 33.333% 0 !important; }
+.relic-art-6 { background-position: 66.666% 0 !important; }
+.relic-art-7 { background-position: 100% 0 !important; }
+
+.pet-sanctuary {
+  min-height: 292px;
+  background-image: linear-gradient(180deg, rgba(7,25,51,.08), rgba(10,23,51,.82)), url("/art/pet-sanctuary-v1.png");
+  background-position: center, center;
+  background-size: cover;
+}
+.pet-sanctuary::after { opacity: .5; }
+.sanctuary-pet { right: -8px; bottom: 10px; width: 61%; height: 78%; }
+.screen-pets { overflow-x: hidden; --world-image: none; }
+
+.atlas-map {
+  width: calc(100% + 24px);
+  height: 560px;
+  margin: 8px -12px 11px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: inset 0 -42px 35px rgba(6,15,33,.58), 0 14px 28px rgba(0,0,0,.25);
+}
+
+.hibernation-card,
+.tribute-alert,
+.investment-hero,
+.wizard-guide,
+.debt-total,
+.victory-panel,
+.keeper-desk { position: relative; overflow: hidden; isolation: isolate; }
+.hibernation-card > *,
+.tribute-alert > *,
+.investment-hero > *,
+.wizard-guide > *,
+.debt-total > *,
+.victory-panel > *,
+.keeper-desk > * { position: relative; z-index: 2; }
+
+.hibernation-card {
+  background: radial-gradient(circle at 76% 28%, rgba(81,181,255,.25), transparent 25%), linear-gradient(105deg, #073653 0 48%, #10234d 100%);
+}
+.hibernation-card::after {
+  content: ""; position: absolute; z-index: 1; right: -20px; bottom: -22px; width: 58%; height: 122%;
+  background: url("/characters/hibernation-guardian-v1.png") right bottom / contain no-repeat;
+  filter: drop-shadow(0 10px 8px rgba(0,0,0,.45));
+}
+.tribute-alert {
+  background: radial-gradient(circle at 82% 25%, rgba(255,159,60,.24), transparent 23%), linear-gradient(108deg, #6f173d 0 49%, #3e1c45 100%);
+}
+.tribute-alert::after,
+.keeper-desk::after {
+  content: ""; position: absolute; z-index: 1; right: -18px; bottom: -25px; width: 54%; height: 126%;
+  background: url("/characters/tribute-guardian-v1.png") right bottom / contain no-repeat;
+  filter: drop-shadow(0 9px 7px rgba(0,0,0,.44));
+}
+.investment-hero {
+  background: radial-gradient(circle at 79% 22%, rgba(72,221,141,.24), transparent 25%), linear-gradient(108deg, #0c5742 0 49%, #123545 100%);
+}
+.investment-hero::after {
+  content: ""; position: absolute; z-index: 1; right: -22px; bottom: -20px; width: 58%; height: 120%;
+  background: url("/characters/hibernation-guardian-v1.png") right bottom / contain no-repeat;
+  filter: drop-shadow(0 10px 8px rgba(0,0,0,.45));
+}
+.wizard-guide { background: radial-gradient(circle at 18% 30%, rgba(87,148,255,.24), transparent 26%), linear-gradient(102deg, #09162f, #173d68); }
+.flight-wizard {
+  position: absolute !important;
+  z-index: 1 !important;
+  inset: 0 auto 0 0;
+  width: 51%;
+  background-image: url("/characters/flight-wizard-v2.png");
+  background-position: left bottom;
+  background-size: contain;
+  -webkit-mask-image: linear-gradient(90deg, #000 0 82%, transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0 82%, transparent 100%);
+}
+
+.debt-total {
+  background: radial-gradient(circle at 80% 20%, rgba(255,176,59,.23), transparent 24%), linear-gradient(108deg, #493223 0 48%, #242638 100%);
+}
+.debt-total::after {
+  content: ""; position: absolute; z-index: 1; right: -18px; bottom: -31px; width: 59%; height: 128%;
+  background: url("/characters/debt-guardian-v1.png") right bottom / contain no-repeat;
+  filter: drop-shadow(0 10px 8px rgba(0,0,0,.5));
+}
+.victory-panel {
+  background:
+    radial-gradient(ellipse at 84% 70%, rgba(255,178,54,.19), transparent 24%),
+    repeating-radial-gradient(ellipse at 91% 47%, transparent 0 9px, rgba(111,129,155,.34) 10px 13px, transparent 14px 22px),
+    linear-gradient(108deg, #4a3725 0 51%, #222636 100%);
+}
+.keeper-desk { background: radial-gradient(circle at 80% 20%, rgba(255,164,100,.2), transparent 25%), linear-gradient(108deg, #4d273e 0 49%, #25243e 100%); }
+
+.flight-save-actions,
+.reorder-actions { display: grid; grid-template-columns: 1fr 1.2fr; gap: 7px; margin-top: 8px; }
+.flight-save-actions button,
+.reorder-actions button { width: 100%; margin: 0; }
+
+@media (max-width: 370px), (max-height: 720px) {
+  .pet-sanctuary { min-height: 235px; }
+  .sanctuary-copy { width: 53%; padding: 8px; }
+  .sanctuary-pet { width: 57%; }
+  .atlas-map { height: 455px; }
+  .daily-briefing { padding: 8px; }
+}

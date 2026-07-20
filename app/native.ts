@@ -1,4 +1,5 @@
 import { Capacitor } from "@capacitor/core";
+import type { DragonState } from "./data";
 
 const stableNotificationId = (id: string) => Math.abs([...id].reduce((sum, character) => ((sum * 31) + character.charCodeAt(0)) | 0, 17));
 
@@ -127,4 +128,63 @@ export async function scheduleWishReminder(input: { id: string; name: string; at
     }],
   });
   return { scheduled: true, reason: "Wish reminder scheduled." };
+}
+
+async function cancelNotification(key: string) {
+  if (!Capacitor.isNativePlatform()) return;
+  const { LocalNotifications } = await import("@capacitor/local-notifications");
+  await LocalNotifications.cancel({ notifications: [{ id: stableNotificationId(key) }] });
+}
+
+export const cancelClaimantReminder = (id: string) => cancelNotification(`claimant-${id}`);
+export const cancelWishReminder = (id: string) => cancelNotification(`wish-${id}`);
+
+async function schedulePetReminder(state: DragonState, pet: DragonState["pets"][number]) {
+  if (!Capacitor.isNativePlatform()) return;
+  const { LocalNotifications } = await import("@capacitor/local-notifications");
+  const intervalDays = pet.cadence === "daily" ? 1 : pet.cadence === "weekly" ? 7 : 30;
+  const at = new Date(new Date(pet.lastInteraction).getTime() + intervalDays * 86_400_000);
+  if (at.getTime() <= Date.now()) at.setTime(Date.now() + 5 * 60_000);
+  const id = stableNotificationId(`pet-${pet.id}`);
+  await LocalNotifications.cancel({ notifications: [{ id }] });
+  await LocalNotifications.schedule({ notifications: [{ id, title: `${pet.name} is ready for a visit`, body: "A gentle check-in is waiting. Nothing was lost, and there is never a penalty for returning later.", schedule: { at }, threadIdentifier: "dragon-mode-pets", extra: { petId: pet.id } }] });
+}
+
+export async function reconcileNotificationSchedule(state: DragonState) {
+  if (!Capacitor.isNativePlatform()) return { scheduled: false, reason: "Notifications are available in the installed app." };
+  const { LocalNotifications } = await import("@capacitor/local-notifications");
+  if (!state.profile.notificationsEnabled) {
+    const pending = await LocalNotifications.getPending();
+    if (pending.notifications.length) await LocalNotifications.cancel({ notifications: pending.notifications.map(({ id }) => ({ id })) });
+    return { scheduled: false, reason: "Dragon Mode reminders are off." };
+  }
+  const permission = await LocalNotifications.requestPermissions();
+  if (permission.display !== "granted") return { scheduled: false, reason: "Notification permission was not granted." };
+  const preferences = state.profile.notificationPreferences;
+  for (const subscription of state.subscriptions) {
+    if (preferences.claimants && subscription.reminderEnabled) {
+      const at = new Date(new Date(subscription.nextCharge).getTime() - subscription.reminderDays * 86_400_000);
+      if (at.getTime() <= Date.now()) at.setTime(Date.now() + 5 * 60_000);
+      await scheduleClaimantReminder({ id: subscription.id, name: subscription.name, amount: subscription.amount, at });
+    } else await cancelClaimantReminder(subscription.id);
+  }
+  for (const wish of state.wishes) {
+    if (preferences.wishes && wish.status === "resting") {
+      const at = new Date(wish.endsAt);
+      if (at.getTime() <= Date.now()) at.setTime(Date.now() + 5 * 60_000);
+      await scheduleWishReminder({ id: wish.id, name: wish.name, at });
+    } else await cancelWishReminder(wish.id);
+  }
+  for (const pet of state.pets) {
+    if (preferences.pets) await schedulePetReminder(state, pet);
+    else await cancelNotification(`pet-${pet.id}`);
+  }
+  const weeklyId = stableNotificationId("weekly-review");
+  await LocalNotifications.cancel({ notifications: [{ id: weeklyId }] });
+  if (preferences.weeklyReview) await LocalNotifications.schedule({ notifications: [{ id: weeklyId, title: "A calm weekly Lair review", body: "One look is enough: check what changed, choose one useful step, then leave the vault in peace.", schedule: { on: { weekday: 1, hour: 18, minute: 0 }, repeats: true }, threadIdentifier: "dragon-mode-review" }] });
+  const priceId = stableNotificationId("price-changes");
+  await LocalNotifications.cancel({ notifications: [{ id: priceId }] });
+  const changed = state.subscriptions.filter((subscription) => subscription.priceChange);
+  if (preferences.priceChanges && changed.length) await LocalNotifications.schedule({ notifications: [{ id: priceId, title: "A claimant changed its tribute", body: `${changed.map((item) => item.name).slice(0, 2).join(" and ")} ${changed.length === 1 ? "has" : "have"} a price change ready for review.`, schedule: { at: new Date(Date.now() + 5 * 60_000) }, threadIdentifier: "dragon-mode-price-changes" }] });
+  return { scheduled: true, reason: "Friendly reminders reconciled." };
 }

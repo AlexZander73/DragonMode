@@ -16,6 +16,7 @@ import {
 import { createEmptyState, createSeedState, normalizeState, SCHEMA_VERSION } from "../app/data";
 import { EXPERIMENTAL_MARKET_DATA } from "../app/constants";
 import { calculateIdleReward, captureFinancialSnapshot, processJourneySession, shouldRefreshMarketData } from "../app/journey";
+import { createTransaction, deleteTransaction, replaceTransaction } from "../app/ledger";
 
 test("subscription cadences normalize to a monthly planning cost", () => {
   const subscription = createSeedState().subscriptions[0];
@@ -80,8 +81,43 @@ test("XP awards preserve permanent milestones and unlock level rewards", () => {
   state.progression.xp = 1995;
   const progression = addProgressionXp(state, 10, "test-milestone");
   assert.equal(progression.level, 9);
-  assert.ok(progression.relics.includes("Level 9 Sigil"));
+  assert.ok(progression.relics.includes("Vaultwarden Lantern"));
   assert.ok(progression.milestones.includes("test-milestone"));
+});
+
+test("ledger creation, editing, deletion, and transfers reconcile every affected balance", () => {
+  const base = createSeedState();
+  const expense = {
+    id: "ledger-expense",
+    accountId: "a1",
+    date: "2026-07-20T12:00:00.000Z",
+    merchant: "Hearth supplies",
+    amount: 25.5,
+    direction: "expense" as const,
+    category: "The Hearth",
+    note: "",
+    status: "cleared" as const,
+    createdManually: true,
+  };
+  const created = createTransaction(base, expense);
+  assert.equal(created.accounts.find((item) => item.id === "a1")?.balance, 6184.8);
+  assert.equal(created.chambers.find((item) => item.id === "hearth")?.amount, 6214.8);
+
+  const edited = { ...expense, amount: 40, direction: "income" as const };
+  const replaced = replaceTransaction(created, expense, edited);
+  assert.equal(replaced.accounts.find((item) => item.id === "a1")?.balance, 6250.3);
+  assert.equal(replaced.chambers.find((item) => item.id === "hearth")?.amount, 6280.3);
+
+  const restored = deleteTransaction(replaced, edited);
+  assert.equal(restored.accounts.find((item) => item.id === "a1")?.balance, base.accounts.find((item) => item.id === "a1")?.balance);
+  assert.equal(restored.chambers.find((item) => item.id === "hearth")?.amount, base.chambers.find((item) => item.id === "hearth")?.amount);
+
+  const transfer = { ...expense, id: "ledger-transfer", merchant: "Deep Vault transfer", amount: 300, category: "Transfer", transfer: true, transferToAccountId: "a2" };
+  const moved = createTransaction(base, transfer);
+  assert.equal(moved.accounts.find((item) => item.id === "a1")?.balance, 5910.3);
+  assert.equal(moved.accounts.find((item) => item.id === "a2")?.balance, 8150);
+  assert.equal(moved.chambers.find((item) => item.id === "hearth")?.amount, 5940.3);
+  assert.equal(moved.chambers.find((item) => item.id === "vault")?.amount, 8150);
 });
 
 test("pet care cadences become due without punishing bond progress", () => {
