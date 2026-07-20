@@ -7,6 +7,7 @@ const config: CapacitorConfig = {
   backgroundColor: "#08182f",
   ios: {
     contentInset: "always",
+    scheme: "DragonMode",
   },
   android: {
     backgroundColor: "#08182f",
