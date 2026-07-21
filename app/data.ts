@@ -836,6 +836,7 @@ export const createEmptyState = (): DragonState => {
     profile: {
       ...seed.profile,
       displayName: "Keeper",
+      title: "New Keeper",
       dataMode: "personal",
       minimumBuffer: 0,
       comfortableMonthlyCost: 0,
@@ -851,13 +852,14 @@ export const createEmptyState = (): DragonState => {
     wishes: [],
     goals: [],
     investments: [],
+    pets: seed.pets.map((pet) => ({ ...pet, lastInteraction: new Date().toISOString(), bondXp: 0, mood: "resting" as const })),
     imports: { batches: [], reconciliations: [], rules: [], mappingTemplates: [] },
     checkIns: { history: [], returnEmbers: 0, loreKeys: 0 },
     education: { completedLoreIds: [], savedScenarioAssumptions: {} },
     collection: { ...seed.collection, stardust: 0, ownedItemIds: [], reveals: [], pullsSinceNew: 0, pullsSinceMythic: 0 },
     journey: {
       ...seed.journey,
-      currentNode: 1,
+      currentNode: 0,
       snapshots: [],
       chapters: [],
       incomeSources: [],
@@ -900,8 +902,8 @@ const isObject = (value: unknown): value is Record<string, unknown> => typeof va
 
 export function normalizeState(input: unknown): DragonState {
   if (!isObject(input)) throw new Error("Invalid Dragon Mode export");
-  const seed = createSeedState();
   const source = input as Partial<DragonState>;
+  const seed = source.profile?.dataMode === "demo" ? createSeedState() : createEmptyState();
   if (!source.profile || !Array.isArray(source.chambers)) throw new Error("Invalid Dragon Mode export");
 
   const chambers = source.chambers
@@ -995,7 +997,7 @@ export function normalizeState(input: unknown): DragonState {
       ...seed.profile,
       ...source.profile,
       onboardingComplete: source.profile.onboardingComplete ?? source.profile.tutorialComplete ?? false,
-      dataMode: source.profile.dataMode ?? "demo",
+      dataMode: source.profile.dataMode ?? "personal",
       notificationQuietStart: source.profile.notificationQuietStart ?? "21:00",
       notificationQuietEnd: source.profile.notificationQuietEnd ?? "08:00",
       reviewDay: source.profile.reviewDay ?? 1,
@@ -1063,6 +1065,6 @@ export function normalizeState(input: unknown): DragonState {
       rewardEventIds: Array.isArray(source.progression?.rewardEventIds) ? source.progression.rewardEventIds : [],
       storyChoices: { ...seed.progression.storyChoices, ...(source.progression?.storyChoices ?? {}) },
     },
-    updatedAt: new Date().toISOString(),
+    updatedAt: source.updatedAt ?? new Date().toISOString(),
   };
 }

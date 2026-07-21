@@ -80,28 +80,19 @@ import {
   totalDebt,
 } from "./calculations";
 import { APP_NAME, APP_TAGLINE, EXPERIMENTAL_MARKET_DATA, NATIVE_MARKET_API_BASE, configureFormatting, formatCompactGold, formatGold, formatShortDate as formatDate, type MainTab } from "./constants";
-import { createEmptyState, createSeedState, JOURNEY_AVATARS, normalizeState, type DragonState, type Goal, type ImportBatch, type IncomeCadence, type IncomeKind, type InvestmentPosition, type Pet, type Quest, type Subscription, type Transaction, type WorthRating } from "./data";
+import { createEmptyState, JOURNEY_AVATARS, type DragonState, type Goal, type ImportBatch, type IncomeCadence, type IncomeKind, type InvestmentPosition, type Pet, type Quest, type Subscription, type Transaction, type WorthRating } from "./data";
 import { latestJourneyChapter, processJourneySession, selectedJourneyAvatar, shouldRefreshMarketData } from "./journey";
+import { completeGuidedTutorial, prepareReleaseState, restartGuidedTutorial, setGuidedTutorialStep } from "./onboarding";
 import { completeHoardCheck, getHoardCheck } from "./check-ins";
 import { buildCalculatorResults, completeLoreCard, recalculateResult, type CalculatorResult } from "./education";
 import { collectionChoiceDue, RELIC_ITEMS, RELIC_ODDS, RELIC_SETS, revealRelic } from "./collection";
 import { cancelClaimantReminder, cancelWishReminder, notificationPermission, playFeedback, reconcileNotificationSchedule, scheduleClaimantReminder, scheduleWishReminder, setupNotificationActions } from "./native";
 import { createTransaction, deleteTransaction, replaceTransaction, syncInvestmentAccounts } from "./ledger";
 import { commitImportBatch, resolveCommittedCandidate, resolveImportCandidate, stageTextImport, undoImportBatch } from "./imports";
-import { clearState, loadState, saveState } from "./storage";
+import { clearState, loadState, parseStateBackup, saveState, serializeStateBackup } from "./storage";
 
 type Screen = "lair" | "pets" | "journey" | "roster" | "idle" | "collection" | "hoard" | "import" | "quests" | "goals" | "analytics" | "lore" | "tribute" | "flight" | "wish" | "dragon" | "debt" | "investments" | "legacy" | "settings";
 type Sheet = { type: string; id?: string; title?: string; body?: string; preset?: Partial<Transaction> } | null;
-type OnboardingChoices = {
-  dataMode: "demo" | "personal";
-  displayName: string;
-  dragonName: string;
-  dragonColor: string;
-  lairTheme: string;
-  avatarId: string;
-  journeyEnabled: boolean;
-  cadence: DragonState["journey"]["cadence"];
-};
 
 const ICONS: Record<string, LucideIcon> = {
   flame: Flame,
@@ -164,10 +155,10 @@ const daysUntil = (value: string) => Math.max(0, Math.ceil((new Date(value).getT
 const daysSince = (value: string) => Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000));
 const dayLabel = (days: number) => `${days} ${days === 1 ? "day" : "days"}`;
 
-const cloneSeed = () => createSeedState();
+const cloneInitialState = () => createEmptyState();
 
 export default function DragonModeApp() {
-  const [state, setState] = useState<DragonState>(cloneSeed);
+  const [state, setState] = useState<DragonState>(cloneInitialState);
   const [ready, setReady] = useState(false);
   const [screen, setScreen] = useState<Screen>("lair");
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -181,7 +172,7 @@ export default function DragonModeApp() {
   useEffect(() => {
     loadState()
       .then((saved) => {
-        const nextState = processJourneySession(saved ?? createSeedState());
+        const nextState = prepareReleaseState(saved);
         setState(nextState);
         setTutorialStep(nextState.profile.tutorialChapter ?? 0);
       })
@@ -254,6 +245,15 @@ export default function DragonModeApp() {
     const timer = window.setTimeout(() => saveState(state).catch(() => undefined), 250);
     return () => window.clearTimeout(timer);
   }, [ready, state]);
+
+  useEffect(() => {
+    if (!ready || state.profile.tutorialComplete || state.profile.tutorialChapter !== 1 || !state.accounts.length) return;
+    const timer = window.setTimeout(() => {
+      setTutorialStep(2);
+      setState((previous) => setGuidedTutorialStep(previous, 2));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [ready, state.accounts.length, state.profile.tutorialChapter, state.profile.tutorialComplete]);
 
   useEffect(() => {
     if (!toast) return;
@@ -347,38 +347,13 @@ export default function DragonModeApp() {
     setToast(`${subscription.name} use logged · +2 XP`);
   };
 
-  const finishTutorial = (choices: OnboardingChoices) => {
-    updateState((previous) => {
-      const firstRun = !previous.profile.onboardingComplete;
-      const base = firstRun ? (choices.dataMode === "personal" ? createEmptyState() : createSeedState()) : previous;
-      return processJourneySession({
-        ...base,
-        profile: {
-          ...base.profile,
-          displayName: choices.displayName.trim() || "Keeper",
-          dragonName: choices.dragonName.trim() || "Moss",
-          selectedDragonColor: choices.dragonColor,
-          selectedLairTheme: choices.lairTheme,
-          tutorialComplete: true,
-          tutorialChapter: 0,
-          onboardingComplete: true,
-          dataMode: firstRun ? choices.dataMode : base.profile.dataMode,
-        },
-        journey: {
-          ...base.journey,
-          selectedAvatarId: choices.avatarId,
-          enabled: choices.journeyEnabled,
-          cadence: choices.cadence,
-          marketAutoRefresh: false,
-        },
-        progression: firstRun ? {
-          ...base.progression,
-          relics: base.progression.relics.includes("Lantern of Awakening") ? base.progression.relics : ["Lantern of Awakening", ...base.progression.relics],
-          milestones: base.progression.milestones.includes("awakening-complete") ? base.progression.milestones : ["awakening-complete", ...base.progression.milestones],
-          unlockedCosmetics: base.progression.unlockedCosmetics.includes(choices.lairTheme) ? base.progression.unlockedCosmetics : [...base.progression.unlockedCosmetics, choices.lairTheme],
-        } : addProgressionXp(base, 10, "awakening-replayed"),
-      });
-    });
+  const setTutorialProgress = (step: number) => {
+    setTutorialStep(step);
+    updateState((previous) => setGuidedTutorialStep(previous, step));
+  };
+
+  const finishTutorial = () => {
+    updateState((previous) => processJourneySession(completeGuidedTutorial(previous)));
     setTutorialStep(0);
   };
 
@@ -418,7 +393,7 @@ export default function DragonModeApp() {
           {screen === "debt" && <DebtScreen state={state} navigate={navigate} setSheet={setSheet} />}
           {screen === "investments" && <InvestmentsScreen state={state} navigate={navigate} updateState={updateState} setSheet={setSheet} setToast={setToast} refreshMarketQuote={refreshMarketQuote} />}
           {screen === "legacy" && <LegacyScreen state={state} navigate={navigate} setSheet={setSheet} />}
-          {screen === "settings" && <SettingsScreen state={state} navigate={navigate} updateState={updateState} setToast={setToast} setSheet={setSheet} />}
+          {screen === "settings" && <SettingsScreen state={state} navigate={navigate} updateState={updateState} setToast={setToast} setSheet={setSheet} startTutorial={() => { setTutorialStep(0); updateState((previous) => restartGuidedTutorial(previous)); navigate("lair"); }} />}
           <div className="scroll-spacer" />
         </main>
 
@@ -445,7 +420,7 @@ export default function DragonModeApp() {
         )}
 
         {!state.profile.tutorialComplete && (
-          <Tutorial state={state} firstRun={!state.profile.onboardingComplete} step={tutorialStep} setStep={(step) => { setTutorialStep(step); updateState((previous) => ({ ...previous, profile: { ...previous.profile, tutorialChapter: step } })); }} finish={finishTutorial} />
+          <GuidedTutorial state={state} screen={screen} step={tutorialStep} setStep={setTutorialProgress} finish={finishTutorial} navigate={navigate} setSheet={setSheet} />
         )}
 
         {toast && <div className="toast" role="status"><Sparkles size={18} /> {toast}</div>}
@@ -456,7 +431,7 @@ export default function DragonModeApp() {
 
 function ScreenHeader({ icon: Icon, title, subtitle, back, action }: { icon: LucideIcon; title: string; subtitle?: string; back?: () => void; action?: React.ReactNode }) {
   return (
-    <header className="screen-header">
+    <header className={`screen-header ${back ? "screen-header-back" : "screen-header-root"}`}>
       {back ? <button className="icon-button" type="button" onClick={back} aria-label="Go back"><ArrowLeft size={22} /></button> : <span className="header-icon"><Icon size={22} /></span>}
       <div className="header-copy"><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>
       <div className="header-action">{action}</div>
@@ -514,7 +489,7 @@ function LairScreen({ state, summary, navigate, updateState, setSheet, setToast 
         <ScreenHeader icon={Home} title="The Lair" subtitle={`Welcome, ${state.profile.displayName}`} action={<button type="button" className="level-badge" onClick={() => navigate("journey")}><Map size={16} /> LV {state.progression.level}</button>} />
         <section className="empty-lair-hero">
           <span className="empty-lair-dragon" aria-hidden="true" />
-          <div><small>Chapter 2 · Count the Treasure</small><strong>The sky-vault is ready.</strong><p>{state.profile.dragonName} does not need perfect numbers—only the first piece you are comfortable mapping.</p><button type="button" onClick={() => setSheet({ type: "add-account", title: "Add your first account" })}><Plus size={18} /> Add first account</button></div>
+          <div><small>Start here · private and empty</small><strong>The sky-vault is ready.</strong><p>{state.profile.dragonName} does not need perfect numbers—only the first piece you are comfortable mapping.</p><button type="button" onClick={() => setSheet({ type: "add-account", title: "Add your first account" })}><Plus size={18} /> Add first account</button></div>
         </section>
         <SetupTrail state={state} navigate={navigate} setSheet={setSheet} />
         <section className="local-promise"><ShieldCheck size={25} /><div><strong>Private by default</strong><p>Your financial records stay on this device. No bank login, account, or market connection is required.</p></div></section>
@@ -579,21 +554,11 @@ function LairScreen({ state, summary, navigate, updateState, setSheet, setToast 
       )}
       {(state.profile.dataMode === "personal" && (!state.transactions.length || !state.goals.length || !state.subscriptions.length)) && <SetupTrail state={state} navigate={navigate} setSheet={setSheet} />}
       <SectionTitle title="Upcoming events" action="View all" onAction={() => setSheet({ type: "events", title: "Upcoming events" })} />
-      {state.profile.dataMode === "demo" ? <div className="event-list">
-        <button type="button" onClick={() => setSheet({ type: "event", title: "Streamkeep returns", body: `A ${formatGold(15.49)} monthly tribute arrives in 2 days. It is covered by Available Gold.` })}>
-          <span className="service-mini red">S</span><span><strong>Streamkeep</strong><small>Claimant returns</small></span><em>in 2 days</em><b>{formatGold(15.49)}</b>
-        </button>
-        <button type="button" onClick={() => setSheet({ type: "event", title: "Lair Energy", body: `The estimated ${formatGold(87.12)} electricity bill arrives in 5 days. No action is required.` })}>
-          <span className="service-mini green"><Zap size={15} /></span><span><strong>Lair Energy</strong><small>Essential bill</small></span><em>in 5 days</em><b>{formatGold(87.12)}</b>
-        </button>
-        <button type="button" onClick={() => setSheet({ type: "event", title: "Skyforge payday", body: `Expected income of approximately ${formatGold(3240, 0)} lands in 8 days.` })}>
-          <span className="service-mini blue"><Coins size={15} /></span><span><strong>Skyforge payday</strong><small>Expected income</small></span><em>in 8 days</em><b>+{formatGold(3240, 0)}</b>
-        </button>
-      </div> : <div className="event-list personal-events">
+      <div className="event-list personal-events">
         {state.subscriptions.slice(0, 2).map((subscription) => <button type="button" key={subscription.id} onClick={() => setSheet({ type: "subscription", id: subscription.id, title: subscription.name })}><span className="service-mini" style={{ background: subscription.color }}>{subscription.glyph}</span><span><strong>{subscription.name}</strong><small>Claimant returns</small></span><em>in {dayLabel(daysUntil(subscription.nextCharge))}</em><b>{formatGold(subscription.amount)}</b></button>)}
         {state.debts.slice(0, 1).map((debt) => <button type="button" key={debt.id} onClick={() => setSheet({ type: "debt", id: debt.id, title: debt.name })}><span className="service-mini orange"><LockKeyhole size={15} /></span><span><strong>{debt.name}</strong><small>Minimum due</small></span><em>in {dayLabel(daysUntil(debt.nextDue))}</em><b>{formatGold(debt.minimum)}</b></button>)}
         {!state.subscriptions.length && !state.debts.length && <div className="event-empty"><CalendarDays size={20} /><span><strong>No arrivals mapped yet</strong><small>Add a claimant or debt only when it helps.</small></span></div>}
-      </div>}
+      </div>
       <button className="lore-card" type="button" onClick={() => navigate("lore")}>
         <BookOpen size={25} /><span><strong>Lore Library and calculators</strong><small>Auto-filled illustrations with every assumption shown</small></span><ChevronRight size={18} />
       </button>
@@ -1221,12 +1186,12 @@ function TributeScreen({ state, navigate, setSheet, logUse }: { state: DragonSta
   const tribute = monthlyTribute(state);
   const renewalsSoon = state.subscriptions.filter((item) => daysUntil(item.nextCharge) <= 7).length;
   const changed = state.subscriptions.find((item) => item.priceChange);
-  if (!state.subscriptions.length) return <section className="screen screen-treasury screen-tribute tribute-empty"><ScreenHeader icon={ScrollText} title="Tribute Hall" subtitle="Subscriptions & recurring costs" action={<button className="icon-button" type="button" onClick={() => state.accounts.length ? setSheet({ type: "add-subscription", title: "Add a claimant" }) : navigate("hoard")}><Plus size={21} /></button>} /><TreasurySwitcher current="tribute" navigate={navigate} /><section className="tribute-empty-hero"><span aria-hidden="true" /><div><small>The hall is quiet</small><strong>No claimants are mapped.</strong><p>Add a subscription or recurring cost only when tracking its arrival, annual cost, or usage would be useful.</p><button type="button" onClick={() => state.accounts.length ? setSheet({ type: "add-subscription", title: "Add a claimant" }) : navigate("hoard")}><Plus size={17} /> {state.accounts.length ? "Add a claimant" : "Add an account first"}</button></div></section><div className="claimant-benefits"><div><CalendarDays size={21} /><strong>See renewals</strong><small>Optional reminders</small></div><div><Eye size={21} /><strong>Track use</strong><small>Only if it helps</small></div><div><Coins size={21} /><strong>Annual cost</strong><small>Clear context</small></div></div><p className="supportive-copy">Visibility is useful. Cancelling, keeping, pausing, or not tracking a claimant is always your choice.</p></section>;
+  if (!state.subscriptions.length) return <section className="screen screen-treasury screen-tribute tribute-empty"><h1 className="sr-only">Tribute Hall</h1><TreasurySwitcher current="tribute" navigate={navigate} /><section className="tribute-empty-hero"><span aria-hidden="true" /><div><small>The hall is quiet</small><strong>No claimants are mapped.</strong><p>Add a subscription or recurring cost only when tracking its arrival, annual cost, or usage would be useful.</p><button type="button" onClick={() => state.accounts.length ? setSheet({ type: "add-subscription", title: "Add a claimant" }) : navigate("hoard")}><Plus size={17} /> {state.accounts.length ? "Add a claimant" : "Add an account first"}</button></div></section><div className="claimant-benefits"><div><CalendarDays size={21} /><strong>See renewals</strong><small>Optional reminders</small></div><div><Eye size={21} /><strong>Track use</strong><small>Only if it helps</small></div><div><Coins size={21} /><strong>Annual cost</strong><small>Clear context</small></div></div><p className="supportive-copy">Visibility is useful. Cancelling, keeping, pausing, or not tracking a claimant is always your choice.</p></section>;
   return (
     <section className="screen screen-treasury screen-tribute">
-      <ScreenHeader icon={ScrollText} title="Tribute Hall" subtitle="Subscriptions & recurring costs" action={<button className="icon-button" type="button" onClick={() => setSheet({ type: "add-subscription", title: "Add a claimant" })} aria-label="Add subscription"><Plus size={21} /></button>} />
+      <h1 className="sr-only">Tribute Hall</h1>
       <TreasurySwitcher current="tribute" navigate={navigate} />
-      <section className="tribute-total"><Gem size={24} /><span>Total monthly tribute<strong>{formatGold(tribute)}</strong><small>{formatGold(tribute * 12, 0)} yearly · {state.subscriptions.length} active · {renewalsSoon} soon</small></span><Coins size={32} /></section>
+      <section className="tribute-total"><Gem size={24} /><span>Total monthly tribute<strong>{formatGold(tribute)}</strong><small>{formatGold(tribute * 12, 0)} yearly · {state.subscriptions.length} active · {renewalsSoon} soon</small></span><button className="hero-add" type="button" onClick={() => setSheet({ type: "add-subscription", title: "Add a claimant" })} aria-label="Add subscription"><Plus size={20} /></button></section>
       <div className="claimant-list">
         {state.subscriptions.map((subscription) => (
           <button key={subscription.id} type="button" className="claimant-card" onClick={() => setSheet({ type: "subscription", id: subscription.id, title: subscription.name })}>
@@ -1249,7 +1214,7 @@ function InvestmentsScreen({ state, navigate, updateState, setSheet, setToast, r
   const weightedReturn = state.investments.length ? state.investments.reduce((sum, position) => sum + position.annualReturnAssumption * position.units * (position.marketPrice ?? position.unitPrice), 0) / Math.max(1, totalValue) : 0;
   return (
     <section className="screen screen-treasury screen-investments">
-      <ScreenHeader icon={Sprout} title="Long Sleep" subtitle="Manually tracked long-term treasure" action={<button className="icon-button" type="button" onClick={() => setSheet({ type: "add-investment", title: "Add a sleeping treasure" })} aria-label="Add investment"><Plus size={21} /></button>} />
+      <h1 className="sr-only">Long Sleep investments</h1>
       <TreasurySwitcher current="investments" navigate={navigate} />
       <section className="investment-hero"><Sprout size={28} /><span>Long-term treasure<strong>{formatGold(totalValue)}</strong><small>{growth >= 0 ? "+" : "−"}{formatGold(Math.abs(growth))} versus mapped contributions</small></span><Gem size={30} /></section>
       <div className="investment-summary"><div><span>Contributed</span><strong>{formatGold(contributions)}</strong></div><div><span>Mapped growth</span><strong className={growth >= 0 ? "positive" : "negative"}>{growth >= 0 ? "+" : "−"}{formatGold(Math.abs(growth))}</strong></div><div><span>Projection assumption</span><strong>{weightedReturn.toFixed(1)}%</strong></div></div>
@@ -1403,19 +1368,20 @@ function DragonScreen({ state, navigate, updateState, setToast }: { state: Drago
 
 function DebtScreen({ state, navigate, setSheet }: { state: DragonState; navigate: (screen: Screen) => void; setSheet: (sheet: Sheet) => void }) {
   const [strategy, setStrategy] = useState("Smallest first");
-  const [extra, setExtra] = useState(50);
+  const [extra, setExtra] = useState(0);
   const plan = estimateDebtPlan(state.debts, strategy, extra);
   const victoryDebt = [...state.debts].sort((a, b) => a.balance - b.balance)[0];
   const victoryTarget = victoryDebt ? Math.floor(victoryDebt.balance / 500) * 500 : 0;
   const victoryRemaining = victoryDebt ? Math.max(0, victoryDebt.balance - victoryTarget) : 0;
   return (
-    <section className="screen screen-debt">
-      <ScreenHeader icon={LockKeyhole} title="Debt Chamber" subtitle="Understand and break the chains" back={() => navigate("tribute")} action={<button type="button" className="icon-button" onClick={() => setSheet({ type: "add-debt", title: "Add a claim" })} aria-label="Add debt"><Plus size={20} /></button>} />
+    <section className="screen screen-treasury screen-debt">
+      <h1 className="sr-only">Debt Chamber</h1>
       <TreasurySwitcher current="debt" navigate={navigate} />
       <section className="debt-total"><div className="chain-line"><span /><LockKeyhole size={30} /><span /></div><span>Total debt</span><strong>{formatGold(totalDebt(state))}</strong><small>{formatGold(state.debts.reduce((sum, debt) => sum + debt.minimum, 0))} monthly minimum · {averageApr(state).toFixed(1)}% weighted APR</small></section>
+      <button className="secondary-button full treasury-create" type="button" onClick={() => setSheet({ type: "add-debt", title: "Add a claim" })}><Plus size={17} /> Add a debt</button>
       <div className="debt-list">{state.debts.map((debt) => { const Icon = ICONS[debt.icon] ?? CreditCard; return <button key={debt.id} type="button" onClick={() => setSheet({ type: "debt", id: debt.id, title: debt.name })}><span className="debt-icon"><Icon size={21} /></span><span><strong>{debt.name}</strong><small>{debt.apr.toFixed(2)}% APR · min {formatGold(debt.minimum)}</small><i><b style={{ width: `${debt.progress}%` }} /></i></span><b>{formatGold(debt.balance)}</b></button>; })}</div>
       {victoryDebt && <section className="victory-panel"><span>Next victory · {victoryDebt.name}</span><strong>{victoryRemaining ? `Pay ${formatGold(victoryRemaining, 0)} to cross below ${formatGold(victoryTarget, 0)}.` : "The next chain marker is ready."}</strong><div><i><b style={{ width: `${Math.min(100, 100 - (victoryRemaining / 500) * 100)}%` }} /></i><small>{formatGold(victoryDebt.balance, 0)} remaining</small></div><button className="secondary-button full" type="button" onClick={() => setSheet({ type: "debt-payment", id: victoryDebt.id, title: `Record payment · ${victoryDebt.name}` })}><Coins size={17} /> Record a payment</button></section>}
-      <section className="strategy-panel"><SectionTitle title="Compare strategies" /><label>Payoff order<select value={strategy} onChange={(event) => setStrategy(event.target.value)}><option>Smallest first</option><option>Highest interest first</option><option>Minimum payments</option><option>Custom order</option></select></label><label>Extra each month <b>{formatGold(extra, 0)}</b><input type="range" min="0" max="400" step="25" value={extra} onChange={(event) => setExtra(Number(event.target.value))} /></label><p>{strategy} with {formatGold(extra, 0)} extra estimates <strong>{plan.months} months</strong> to clear all mapped claims, with about {formatGold(plan.interestPaid, 0)} interest.</p></section>
+      {state.debts.length ? <section className="strategy-panel"><SectionTitle title="Compare strategies" /><label>Payoff order<select value={strategy} onChange={(event) => setStrategy(event.target.value)}><option>Smallest first</option><option>Highest interest first</option><option>Minimum payments</option></select></label><label>Extra each month <b>{formatGold(extra, 0)}</b><input type="range" min="0" max="400" step="25" value={extra} onChange={(event) => setExtra(Number(event.target.value))} /></label><p>{strategy} with {formatGold(extra, 0)} extra estimates <strong>{plan.months} months</strong> to clear all mapped claims, with about {formatGold(plan.interestPaid, 0)} interest.</p></section> : <div className="empty-state"><LockKeyhole size={36} /><strong>No debts are mapped.</strong><p>Add one only if a payoff comparison would be useful.</p></div>}
     </section>
   );
 }
@@ -1438,12 +1404,12 @@ function LegacyScreen({ state, navigate, setSheet }: { state: DragonState; navig
   );
 }
 
-function SettingsScreen({ state, navigate, updateState, setToast, setSheet }: { state: DragonState; navigate: (screen: Screen) => void; updateState: (updater: (state: DragonState) => DragonState) => void; setToast: (toast: string) => void; setSheet: (sheet: Sheet) => void }) {
+function SettingsScreen({ state, navigate, updateState, setToast, setSheet, startTutorial }: { state: DragonState; navigate: (screen: Screen) => void; updateState: (updater: (state: DragonState) => DragonState) => void; setToast: (toast: string) => void; setSheet: (sheet: Sheet) => void; startTutorial: () => void }) {
   const [permissionState, setPermissionState] = useState("checking");
   useEffect(() => { notificationPermission().then(setPermissionState).catch(() => setPermissionState("unavailable")); }, []);
   const exportData = async () => {
     const filename = `dragon-mode-${new Date().toISOString().slice(0, 10)}.json`;
-    const file = new File([JSON.stringify(state, null, 2)], filename, { type: "application/json" });
+    const file = new File([serializeStateBackup(state)], filename, { type: "application/json" });
     if (navigator.share && navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({ title: "DragonMode vault backup", files: [file] });
@@ -1465,7 +1431,7 @@ function SettingsScreen({ state, navigate, updateState, setToast, setSheet }: { 
   const importData = (file: File | undefined) => {
     if (!file) return;
     file.text().then((text) => {
-      const parsed = normalizeState(JSON.parse(text));
+      const parsed = prepareReleaseState(parseStateBackup(text));
       setStateSafely(parsed);
       setToast("Hoard import complete");
     }).catch(() => setToast("That file could not be read"));
@@ -1485,8 +1451,8 @@ function SettingsScreen({ state, navigate, updateState, setToast, setSheet }: { 
     { key: "storyChapter", label: "Optional permanent story chapter" },
   ];
   return (
-    <section className="screen screen-settings">
-      <ScreenHeader icon={Settings} title="Treasury Settings" subtitle="Your vault, your rules" back={() => navigate("tribute")} />
+    <section className="screen screen-treasury screen-settings">
+      <h1 className="sr-only">Treasury Settings</h1>
       <TreasurySwitcher current="settings" navigate={navigate} />
       <section className="keeper-desk" aria-label="Keeper's desk">
         <span>Keeper&apos;s desk</span>
@@ -1496,17 +1462,17 @@ function SettingsScreen({ state, navigate, updateState, setToast, setSheet }: { 
       <section className="settings-card"><div><span><Volume2 size={20} /><b>Sound effects</b></span><button type="button" role="switch" aria-label="Sound effects" aria-checked={state.profile.soundEnabled} className={state.profile.soundEnabled ? "toggle on" : "toggle"} onClick={() => { updateState((previous) => ({ ...previous, profile: { ...previous.profile, soundEnabled: !previous.profile.soundEnabled } })); playFeedback({ sound: !state.profile.soundEnabled, haptics: false }).catch(() => undefined); }}><i /></button></div><div><span><Zap size={20} /><b>Haptic feedback</b></span><button type="button" role="switch" aria-label="Haptic feedback" aria-checked={state.profile.hapticsEnabled} className={state.profile.hapticsEnabled ? "toggle on" : "toggle"} onClick={() => { updateState((previous) => ({ ...previous, profile: { ...previous.profile, hapticsEnabled: !previous.profile.hapticsEnabled } })); playFeedback({ sound: false, haptics: !state.profile.hapticsEnabled }).catch(() => undefined); }}><i /></button></div><div><span><Bell size={20} /><b>Claimant reminders</b></span><button type="button" role="switch" aria-label="Claimant reminders" aria-checked={state.profile.notificationsEnabled} className={state.profile.notificationsEnabled ? "toggle on" : "toggle"} onClick={() => updateState((previous) => ({ ...previous, profile: { ...previous.profile, notificationsEnabled: !previous.profile.notificationsEnabled } }))}><i /></button></div><div><span><Sparkles size={20} /><b>Reduced motion</b></span><button type="button" role="switch" aria-label="Reduced motion" aria-checked={state.profile.reducedMotion} className={state.profile.reducedMotion ? "toggle on" : "toggle"} onClick={() => updateState((previous) => ({ ...previous, profile: { ...previous.profile, reducedMotion: !previous.profile.reducedMotion } }))}><i /></button></div><div><span><BookOpen size={20} /><b>Plain-language hints</b></span><button type="button" role="switch" aria-label="Plain-language hints" aria-checked={state.profile.plainLanguage} className={state.profile.plainLanguage ? "toggle on" : "toggle"} onClick={() => updateState((previous) => ({ ...previous, profile: { ...previous.profile, plainLanguage: !previous.profile.plainLanguage } }))}><i /></button></div></section>
       <section className="preference-grid"><SectionTitle title="Display & region" /><label>Currency<select value={state.profile.preferredCurrency} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, preferredCurrency: event.target.value } }))}><option value="AUD">AUD · Australian dollar</option><option value="USD">USD · US dollar</option><option value="NZD">NZD · New Zealand dollar</option><option value="GBP">GBP · British pound</option><option value="EUR">EUR · Euro</option><option value="CAD">CAD · Canadian dollar</option></select></label><label>Locale<select value={state.profile.locale} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, locale: event.target.value } }))}><option value="en-AU">English (Australia)</option><option value="en-NZ">English (New Zealand)</option><option value="en-US">English (United States)</option><option value="en-GB">English (United Kingdom)</option></select></label><label>Text size <b>{Math.round(state.profile.fontScale * 100)}%</b><input type="range" min="0.9" max="1.35" step="0.05" value={state.profile.fontScale} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, fontScale: Number(event.target.value) } }))} /></label></section>
       <section className="notification-settings"><SectionTitle title="Friendly notifications" /><p>System permission: <strong>{permissionState}</strong>. There is no generic daily-engagement reminder, and notification text never includes balances, amounts, merchants, or account names.</p>{notificationOptions.map(({ key, label }) => <label className="check-label" key={key}><input type="checkbox" checked={state.profile.notificationPreferences[key]} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, notificationPreferences: { ...previous.profile.notificationPreferences, [key]: event.target.checked } } }))} /> {label}</label>)}<div className="notification-rhythm"><label>Quiet hours start<input type="time" value={state.profile.notificationQuietStart} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, notificationQuietStart: event.target.value } }))} /></label><label>Quiet hours end<input type="time" value={state.profile.notificationQuietEnd} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, notificationQuietEnd: event.target.value } }))} /></label><label>Weekly review day<select value={state.profile.reviewDay} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, reviewDay: Number(event.target.value) } }))}><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="7">Sunday</option></select></label><label>Review time<select value={state.profile.reviewHour} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, reviewHour: Number(event.target.value) } }))}>{[8, 10, 12, 14, 16, 18, 20].map((hour) => <option key={hour} value={hour}>{new Date(2000, 0, 1, hour).toLocaleTimeString(state.profile.locale, { hour: "numeric", minute: "2-digit" })}</option>)}</select></label></div></section>
-      <section className="budget-settings"><SectionTitle title="Planning assumptions" /><label>Protected minimum buffer <b>{formatGold(state.profile.minimumBuffer, 0)}</b><input type="range" min="0" max="5000" step="100" value={state.profile.minimumBuffer} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, minimumBuffer: Number(event.target.value) } }))} /></label><label>Comfortable monthly cost <b>{formatGold(state.profile.comfortableMonthlyCost, 0)}</b><input type="range" min="500" max="6000" step="50" value={state.profile.comfortableMonthlyCost} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, comfortableMonthlyCost: Number(event.target.value) } }))} /></label></section>
+      <section className="budget-settings"><SectionTitle title="Planning assumptions" /><label>Protected minimum buffer <b>{formatGold(state.profile.minimumBuffer, 0)}</b><input type="range" min="0" max="5000" step="100" value={state.profile.minimumBuffer} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, minimumBuffer: Number(event.target.value) } }))} /></label><label>Comfortable monthly cost <b>{formatGold(state.profile.comfortableMonthlyCost, 0)}</b><input type="range" min="0" max="6000" step="50" value={state.profile.comfortableMonthlyCost} onChange={(event) => updateState((previous) => ({ ...previous, profile: { ...previous.profile, comfortableMonthlyCost: Number(event.target.value) } }))} /></label></section>
       <section className="privacy-panel"><ShieldCheck size={25} /><div><small>Privacy at a glance</small><strong>No account. No bank login. No market calls.</strong><p>Financial records, original imported source rows, reconciliation receipts, rules, story choices, and reveal history stay in this app&apos;s private on-device vault. A chosen file is read only after your action. Export happens only when you tap Export JSON.</p></div></section>
-      <section className="data-panel"><h2>Local-first records</h2><p>Export includes the complete device copy, including import provenance and collection history. Restore demo and Start empty replace all of it; deleting the app can also remove it. Export a backup before changing devices. Notifications are optional and use generic, private wording.</p><button type="button" onClick={exportData}><Download size={18} /> Export complete JSON backup</button><label><Upload size={18} /> Import JSON backup<input type="file" accept="application/json" onChange={(event) => importData(event.target.files?.[0])} /></label><button type="button" onClick={() => setSheet({ type: "reset", title: "Restore the demo hoard" })}><RotateCcw size={18} /> Restore demo</button><button type="button" onClick={() => setSheet({ type: "empty-vault", title: "Start a private empty vault" })}><Sparkles size={18} /> Start empty</button></section>
-      <button className="lore-card" type="button" onClick={() => { updateState((previous) => ({ ...previous, profile: { ...previous.profile, tutorialComplete: false, tutorialChapter: 0 } })); navigate("lair"); }}><BookOpen size={24} /><span><strong>Replay the Awakening</strong><small>Start the story tutorial again</small></span><ChevronRight size={18} /></button>
+      <section className="data-panel"><h2>Local-first records</h2><p>Export includes the complete device copy, including import provenance and collection history. Starting fresh replaces all of it; deleting the app can also remove it. Export a backup before changing devices. Notifications are optional and use generic, private wording.</p><button type="button" onClick={exportData}><Download size={18} /> Export complete JSON backup</button><label><Upload size={18} /> Import JSON backup<input type="file" accept="application/json" onChange={(event) => importData(event.target.files?.[0])} /></label><button type="button" onClick={() => setSheet({ type: "empty-vault", title: "Start a private empty vault" })}><Sparkles size={18} /> Start fresh at zero</button></section>
+      <button className="lore-card" type="button" onClick={startTutorial}><BookOpen size={24} /><span><strong>Replay guided setup</strong><small>Walk through the live app again without changing your records</small></span><ChevronRight size={18} /></button>
       <p className="version-note">{APP_NAME} 1.0 release candidate · Local-first · Market retrieval disabled</p>
     </section>
   );
 }
 
 function TreasurySwitcher({ current, navigate }: { current: "tribute" | "debt" | "investments" | "settings"; navigate: (screen: Screen) => void }) {
-  return <div className="treasury-switcher"><button type="button" className={current === "tribute" ? "active" : ""} onClick={() => navigate("tribute")}><ScrollText size={15} /> Claimants</button><button type="button" className={current === "debt" ? "active" : ""} onClick={() => navigate("debt")}><LockKeyhole size={15} /> Debt</button><button type="button" className={current === "investments" ? "active" : ""} onClick={() => navigate("investments")}><Sprout size={15} /> Invest</button><button type="button" className={current === "settings" ? "active" : ""} onClick={() => navigate("settings")}><Settings size={15} /> Settings</button></div>;
+  return <nav className="treasury-switcher" aria-label="Treasury sections"><button type="button" aria-current={current === "tribute" ? "page" : undefined} className={current === "tribute" ? "active" : ""} onClick={() => navigate("tribute")}><ScrollText size={15} /> Claimants</button><button type="button" aria-current={current === "debt" ? "page" : undefined} className={current === "debt" ? "active" : ""} onClick={() => navigate("debt")}><LockKeyhole size={15} /> Debt</button><button type="button" aria-current={current === "investments" ? "page" : undefined} className={current === "investments" ? "active" : ""} onClick={() => navigate("investments")}><Sprout size={15} /> Invest</button><button type="button" aria-current={current === "settings" ? "page" : undefined} className={current === "settings" ? "active" : ""} onClick={() => navigate("settings")}><Settings size={15} /> Settings</button></nav>;
 }
 
 function Segmented({ options, value, onChange, compact = false }: { options: string[]; value: string; onChange: (value: string) => void; compact?: boolean }) {
@@ -1558,7 +1524,25 @@ function Modal({ sheet, state, updateState, setSheet, logUse, completeQuest, set
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
     dialogRef.current?.querySelector<HTMLElement>("button, input, select, textarea")?.focus();
-    const handleKey = (event: KeyboardEvent) => { if (event.key === "Escape") setSheet(null); };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSheet(null);
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [href], [tabindex]:not([tabindex="-1"])')]
+        .filter((element) => element.getAttribute("aria-hidden") !== "true" && element.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
     document.addEventListener("keydown", handleKey);
     return () => { document.removeEventListener("keydown", handleKey); previouslyFocused?.focus(); };
   }, [setSheet]);
@@ -1595,7 +1579,6 @@ function Modal({ sheet, state, updateState, setSheet, logUse, completeQuest, set
         {sheet.type === "add-goal" && <AddGoal state={state} updateState={updateState} setSheet={setSheet} setToast={setToast} />}
         {sheet.type === "add-debt" && <AddDebt state={state} updateState={updateState} setSheet={setSheet} setToast={setToast} />}
         {sheet.type === "reorganise" && <Reorganise state={state} updateState={updateState} setToast={setToast} />}
-        {sheet.type === "reset" && <div className="confirm-panel"><p>This restores the vivid seeded demo. Your current local data will be replaced. The tutorial will not replay unless you choose Replay the Awakening.</p><button type="button" className="danger-button" onClick={() => { clearState().then(() => { const demo = createSeedState(); updateState(() => ({ ...demo, profile: { ...demo.profile, tutorialComplete: true, tutorialChapter: 0, onboardingComplete: true } })); setSheet(null); navigate("lair"); setToast("Demo hoard restored"); }); }}>Reset demo data</button><button type="button" className="secondary-button" onClick={() => setSheet(null)}>Keep current hoard</button></div>}
         {sheet.type === "empty-vault" && <div className="confirm-panel"><p>This replaces the current device copy with a fresh private vault. Export first if you may want to restore these records.</p><button type="button" className="danger-button" onClick={() => { clearState().then(() => { const empty = createEmptyState(); updateState(() => ({ ...empty, profile: { ...empty.profile, tutorialComplete: true, onboardingComplete: true } })); setSheet(null); navigate("lair"); setToast("A fresh private vault is ready"); }); }}>Start empty vault</button><button type="button" className="secondary-button" onClick={() => setSheet(null)}>Keep current hoard</button></div>}
         {!sheet.body && ["event", "lore", "insight", "relic", "story"].includes(sheet.type) && <p className="modal-body-copy">Nothing here is irreversible. Review the detail, then choose the next useful step.</p>}
       </section>
@@ -1943,7 +1926,7 @@ function AddInvestment({ state, updateState, setSheet, setToast }: { state: Drag
   const [units, setUnits] = useState("");
   const [unitPrice, setUnitPrice] = useState("");
   const [contributions, setContributions] = useState("");
-  const [annualReturnAssumption, setAnnualReturnAssumption] = useState("5");
+  const [annualReturnAssumption, setAnnualReturnAssumption] = useState("0");
   const [dividendYield, setDividendYield] = useState("");
   const [dividendFrequency, setDividendFrequency] = useState<NonNullable<InvestmentPosition["dividendFrequency"]>>("quarterly");
   const [accountId, setAccountId] = useState(eligibleAccounts[0]?.id ?? "");
@@ -2037,39 +2020,45 @@ function SetupTrail({ state, navigate, setSheet }: { state: DragonState; navigat
     { title: "Name a claimant", detail: "Optional: map one subscription or recurring cost.", done: state.subscriptions.length > 0, icon: ScrollText, action: () => state.accounts.length ? setSheet({ type: "add-subscription", title: "Add a claimant" }) : setSheet({ type: "add-account", title: "Add an account first" }) },
   ];
   const completed = tasks.filter((task) => task.done).length;
-  return <section className="setup-trail"><div className="setup-heading"><span><Sparkles size={18} /></span><div><small>Chapter 2 · Open the chambers</small><strong>Your first gentle path</strong></div><b>{completed}/{tasks.length}</b></div><i className="setup-progress"><b style={{ width: `${completed / tasks.length * 100}%` }} /></i><div className="setup-steps">{tasks.map((task, index) => { const Icon = task.icon; return <button type="button" key={task.title} className={task.done ? "done" : ""} onClick={task.action}><span>{task.done ? <Check size={17} /> : <Icon size={17} />}</span><div><small>Step {index + 1}</small><strong>{task.title}</strong><p>{task.done ? "Mapped—this can still be changed." : task.detail}</p></div><ChevronRight size={17} /></button>; })}</div></section>;
+  return <section className="setup-trail"><div className="setup-heading"><span><Sparkles size={18} /></span><div><small>Optional setup path</small><strong>Your first gentle steps</strong></div><b>{completed}/{tasks.length}</b></div><i className="setup-progress"><b style={{ width: `${completed / tasks.length * 100}%` }} /></i><div className="setup-steps">{tasks.map((task, index) => { const Icon = task.icon; return <button type="button" key={task.title} className={task.done ? "done" : ""} onClick={task.action}><span>{task.done ? <Check size={17} /> : <Icon size={17} />}</span><div><small>Step {index + 1}</small><strong>{task.title}</strong><p>{task.done ? "Mapped—this can still be changed." : task.detail}</p></div><ChevronRight size={17} /></button>; })}</div></section>;
 }
 
-function Tutorial({ state, firstRun, step, setStep, finish }: { state: DragonState; firstRun: boolean; step: number; setStep: (step: number) => void; finish: (choices: OnboardingChoices) => void }) {
-  const [choices, setChoices] = useState<OnboardingChoices>({
-    dataMode: state.profile.dataMode,
-    displayName: state.profile.displayName,
-    dragonName: state.profile.dragonName,
-    dragonColor: state.profile.selectedDragonColor,
-    lairTheme: state.profile.selectedLairTheme,
-    avatarId: state.journey.selectedAvatarId,
-    journeyEnabled: state.journey.enabled,
-    cadence: state.journey.cadence,
-  });
-  const safeStep = Math.min(step, 7);
-  const selectedAvatar = JOURNEY_AVATARS.find((avatar) => avatar.id === choices.avatarId) ?? JOURNEY_AVATARS[0];
-  const chapterLabels = ["Chapter 1 · The Awakening", "Chapter 2 · Count the Treasure", "Chapter 3 · Open the Chambers", "Chapter 4 · The First Claimant", "Chapter 5 · Wake the Scrying Pool", "Chapter 6 · The Sleeping Wish", "Chapter 7 · The Chain in the Deep", "Chapter 8 · The First Relic"];
-  const chapterTitles = ["A guardian stirs", "Name what matters", "Shape the sky-vault", "Choose what may return", "A keeper reads the path", "Time protects a decision", "A chain is only a map", "The first victory is permanent"];
-  const next = () => safeStep === 7 ? finish(choices) : setStep(safeStep + 1);
-  return <div className="tutorial-backdrop"><section className={`tutorial-card onboarding-step-${safeStep}`} role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
-    <button className="skip" type="button" onClick={() => finish(choices)}>{firstRun ? "Use these defaults" : "Close replay"}</button>
-    <div className={`onboarding-stage tutorial-${safeStep}`}><span className="onboarding-dragon" aria-hidden="true" />{safeStep >= 4 && <span className="onboarding-avatar" style={{ "--onboarding-avatar": `url("${selectedAvatar.asset}")` } as React.CSSProperties} aria-hidden="true" />}<div><small>{chapterLabels[safeStep]}</small><strong>{chapterTitles[safeStep]}</strong></div></div>
-    <div className="onboarding-copy">
-      {safeStep === 0 && <><h2 id="tutorial-title">Your hoard can be understood.</h2><p>You inherit a sleeping sky-vault and awaken a young dragon. It reflects stewardship and awareness—never the size of your balance.</p>{firstRun && <div className="mode-choice"><button type="button" className={choices.dataMode === "demo" ? "selected" : ""} onClick={() => setChoices((current) => ({ ...current, dataMode: "demo" }))}><Sparkles size={22} /><span><strong>Explore vivid demo</strong><small>See every chamber with fictional data. Replace it anytime.</small></span><Check size={18} /></button><button type="button" className={choices.dataMode === "personal" ? "selected" : ""} onClick={() => setChoices((current) => ({ ...current, dataMode: "personal" }))}><ShieldCheck size={22} /><span><strong>Start private & empty</strong><small>Add only what helps. Nothing is connected automatically.</small></span><Check size={18} /></button></div>}</>}
-      {safeStep === 1 && <><h2 id="tutorial-title">The names in your story</h2><p>Use a name, nickname, title, or anything that makes this feel comfortable.</p><div className="onboarding-fields"><label>Keeper name<input value={choices.displayName} onChange={(event) => setChoices((current) => ({ ...current, displayName: event.target.value }))} maxLength={28} /></label><label>Dragon name<input value={choices.dragonName} onChange={(event) => setChoices((current) => ({ ...current, dragonName: event.target.value }))} maxLength={24} /></label></div><aside><Heart size={18} /> Your dragon never becomes sick, leaves, or loses trust because money is tight.</aside></>}
-      {safeStep === 2 && <><h2 id="tutorial-title">Colour the next chapter</h2><p>These choices are cosmetic and can be changed later.</p><span className="choice-label">Guardian colour</span><div className="color-choice">{["Emerald", "Sapphire", "Amethyst", "Ember"].map((color) => <button type="button" key={color} className={choices.dragonColor === color ? `selected color-${color.toLowerCase()}` : `color-${color.toLowerCase()}`} onClick={() => setChoices((current) => ({ ...current, dragonColor: color }))}><i />{color}</button>)}</div><span className="choice-label">Lair atmosphere</span><div className="theme-choice">{["Sky Vault", "Moon Garden", "Ember Library"].map((theme) => <button type="button" key={theme} className={choices.lairTheme === theme ? "selected" : ""} onClick={() => setChoices((current) => ({ ...current, lairTheme: theme }))}><CloudSun size={17} />{theme}</button>)}</div></>}
-      {safeStep === 3 && <><h2 id="tutorial-title">A claimant is only a recurring cost.</h2><p>Subscriptions and bills may be mapped with a renewal date, price history, usage notes, and an optional reminder. Keeping, pausing, or removing one is always your choice.</p><div className="privacy-seals"><div><CalendarDays size={20} /><span><strong>See arrivals</strong><small>Know what is expected and when</small></span></div><div><Eye size={20} /><span><strong>Track value</strong><small>Usage is optional and editable</small></span></div><div><Bell size={20} /><span><strong>Stay quiet</strong><small>No reminder without permission</small></span></div></div></>}
-      {safeStep === 4 && <><h2 id="tutorial-title">Who travels the Living Atlas?</h2><p>The Scrying Pool reveals patterns, while optional Story Mode turns recent financial direction into a hopeful route. Neither judges the size of the hoard.</p><div className="onboarding-roster">{JOURNEY_AVATARS.map((avatar) => <button type="button" key={avatar.id} className={choices.avatarId === avatar.id ? "selected" : ""} onClick={() => setChoices((current) => ({ ...current, avatarId: avatar.id }))}><span style={{ "--avatar-image": `url("${avatar.asset}")` } as React.CSSProperties} /><small>{avatar.name.split(" ")[0]}</small></button>)}</div><div className="journey-onboarding-controls"><label className="check-label"><input type="checkbox" checked={choices.journeyEnabled} onChange={(event) => setChoices((current) => ({ ...current, journeyEnabled: event.target.checked }))} /> Enable optional Journey chapters</label><label>Story rhythm<select value={choices.cadence} onChange={(event) => setChoices((current) => ({ ...current, cadence: event.target.value as OnboardingChoices["cadence"] }))}><option value="daily">Daily check-in</option><option value="weekly">Weekly reflection</option><option value="pay-cycle">Pay-cycle reflection</option></select></label></div></>}
-      {safeStep === 5 && <><h2 id="tutorial-title">A wish may rest before it becomes a purchase.</h2><p>Dragon&apos;s Rest shows the effect of a future purchase without forbidding it. At the end, record the purchase, create a goal, rest longer, or release it.</p><aside><Star size={18} /> The reward is for making a considered choice—not for choosing “no.”</aside></>}
-      {safeStep === 6 && <><h2 id="tutorial-title">Debt is a claim, not a moral score.</h2><p>Linked payments reconcile both the payment account and the debt balance. If debt rises, titles, relics, pet bonds, and earlier victories remain yours.</p><div className="privacy-seals"><div><LockKeyhole size={20} /><span><strong>See the claim</strong><small>Balance, APR, minimum, and date</small></span></div><div><Route size={20} /><span><strong>Compare routes</strong><small>Snowball, avalanche, or your order</small></span></div><div><Heart size={20} /><span><strong>Keep hope</strong><small>One safe step is enough</small></span></div></div></>}
-      {safeStep === 7 && <><h2 id="tutorial-title">The first relic belongs to you.</h2><p>Release mode stores records in this app&apos;s private on-device vault. The first permanent reward marks that you returned and made the map visible—not how much money you have.</p><div className="privacy-seals"><div><ShieldCheck size={20} /><span><strong>On device</strong><small>Balances, goals, debts, and story progress</small></span></div><div><Download size={20} /><span><strong>Portable</strong><small>Export or import JSON when you choose</small></span></div><div><Crown size={20} /><span><strong>Permanent</strong><small>Relics and progress never regress</small></span></div></div><aside><Heart size={18} /> If the path slides backward, the story adapts with hope and one actionable next step. It never gives up on you.</aside></>}
-    </div>
-    <div className="story-dots" aria-label={`Chapter ${safeStep + 1} of 8`}>{Array.from({ length: 8 }, (_, index) => <i key={index} className={index === safeStep ? "active" : ""} />)}</div>
-    <div className="onboarding-actions">{safeStep > 0 && <button className="secondary-button" type="button" onClick={() => setStep(safeStep - 1)}><ArrowLeft size={17} /> Back</button>}<button className="primary-button" type="button" onClick={next}>{safeStep === 7 ? (choices.dataMode === "personal" && firstRun ? "Open my empty vault" : "Enter the Lair") : "Continue"} <ChevronRight size={18} /></button></div>
-  </section></div>;
+function GuidedTutorial({ state, screen, step, setStep, finish, navigate, setSheet }: { state: DragonState; screen: Screen; step: number; setStep: (step: number) => void; finish: () => void; navigate: (screen: Screen) => void; setSheet: (sheet: Sheet) => void }) {
+  const safeStep = Math.max(0, Math.min(6, step));
+  const go = (nextStep: number, nextScreen?: Screen) => {
+    setStep(nextStep);
+    if (nextScreen) navigate(nextScreen);
+  };
+  const content = [
+    { eyebrow: "Welcome · private and empty", title: "Start from zero, on purpose.", body: "Every financial total is zero until you add it. Nothing is connected, invented, or filled with sample money." },
+    { eyebrow: "Live step · Hoard", title: "Map one real account.", body: "An approximate starting balance is allowed. You can edit, archive, exclude, reconcile, or remove it later." },
+    { eyebrow: "Live step · Capture", title: "Choose the easiest input route.", body: "Paste a bank export into Trusted Ledger for a safe preview, or add one movement manually. Similar charges are never silently deleted." },
+    { eyebrow: "Live step · Preview", title: "Nothing changes before review.", body: "Trusted Ledger shows its interpretation beside the original row. You decide what is real, uncertain, a transfer, or an echo." },
+    { eyebrow: "Live step · Daily habit", title: "One calm check is enough.", body: "Hoard Check presents at most one useful uncertainty. Missing a day removes nothing and never harms a companion." },
+    { eyebrow: "Live step · Learning", title: "Calculators begin with your numbers.", body: "Lore cards fill what they can, expose every assumption, and remain editable illustrations—not financial advice." },
+    { eyebrow: "Tour complete", title: "The Lair is yours.", body: "Use only the parts that help. Replay this guided tour from Settings at any time without changing your records or rewards." },
+  ][safeStep];
+  const primary = () => {
+    if (safeStep === 0) return go(1, "hoard");
+    if (safeStep === 1) {
+      if (screen !== "hoard") return navigate("hoard");
+      if (state.accounts.length) return go(2);
+      return setSheet({ type: "add-account", title: "Add your first account" });
+    }
+    if (safeStep === 2) {
+      if (!state.accounts.length) return go(1, "hoard");
+      return go(3, "import");
+    }
+    if (safeStep === 3) return go(4, "lair");
+    if (safeStep === 4) return go(5, "lore");
+    if (safeStep === 5) return go(6, "lair");
+    finish();
+  };
+  const primaryLabel = safeStep === 0 ? "Show me where to start" : safeStep === 1 ? (state.accounts.length ? "Continue" : screen === "hoard" ? "Add my first account" : "Open Hoard") : safeStep === 2 ? (state.accounts.length ? "Open Trusted Ledger" : "Add an account first") : safeStep === 3 ? "Continue to my daily check" : safeStep === 4 ? "Show learning tools" : safeStep === 5 ? "Finish on my Lair" : "Finish guided tour";
+  return <aside className="guided-tour" role="region" aria-label="Guided setup" aria-labelledby="guided-tour-title">
+    <header><span><Sparkles size={14} /> Guided setup</span><button type="button" onClick={finish}>Skip</button></header>
+    <div className="guided-progress" aria-label={`Step ${safeStep + 1} of 7`}><i><b style={{ width: `${((safeStep + 1) / 7) * 100}%` }} /></i><span>{safeStep + 1}/7</span></div>
+    <div className="guided-copy"><span className="guided-moss" aria-hidden="true" /><div><small>{content.eyebrow}</small><h2 id="guided-tour-title">{content.title}</h2><p>{content.body}</p></div></div>
+    <footer>{safeStep > 0 && <button className="guided-back" type="button" onClick={() => go(safeStep - 1)}><ArrowLeft size={15} /> Back</button>}{safeStep === 2 && state.accounts.length > 0 && <button className="guided-manual" type="button" onClick={() => { setStep(3); setSheet({ type: "add-transaction", title: "Add treasure movement" }); }}>Add manually</button>}<button className="guided-primary" type="button" onClick={primary}>{primaryLabel} <ChevronRight size={16} /></button></footer>
+  </aside>;
 }

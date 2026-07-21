@@ -22,6 +22,57 @@ import { commitImportBatch, resolveImportCandidate, stageTextImport, undoImportB
 import { completeHoardCheck, getHoardCheck } from "../app/check-ins";
 import { buildCalculatorResults, completeLoreCard, recalculateResult } from "../app/education";
 import { archiveSeason, RELIC_ITEMS, revealRelic } from "../app/collection";
+import { completeGuidedTutorial, prepareReleaseState, restartGuidedTutorial, setGuidedTutorialStep } from "../app/onboarding";
+
+test("fresh release state is private, guided, and financially zeroed", () => {
+  const state = prepareReleaseState(null, new Date("2026-07-21T12:00:00.000Z"));
+  const summary = getHoardSummary(state);
+  assert.equal(state.profile.dataMode, "personal");
+  assert.equal(state.profile.tutorialComplete, false);
+  assert.equal(state.profile.onboardingComplete, false);
+  assert.equal(state.profile.minimumBuffer, 0);
+  assert.equal(state.profile.comfortableMonthlyCost, 0);
+  assert.equal(state.profile.essentialMonthlyCost, 0);
+  assert.equal(state.profile.lifestyleMonthlyCost, 0);
+  assert.deepEqual([state.accounts, state.transactions, state.subscriptions, state.debts, state.goals, state.wishes, state.investments], [[], [], [], [], [], [], []]);
+  assert.ok(state.chambers.every((chamber) => chamber.amount === 0 && chamber.target === 0));
+  assert.deepEqual(summary, { total: 0, available: 0, committed: 0, guarded: 0, invested: 0, freeGold: 0, freeGoldRaw: 0 });
+  assert.equal(state.progression.level, 1);
+  assert.equal(state.progression.xp, 0);
+  assert.deepEqual(state.progression.relics, []);
+  assert.ok(state.pets.every((pet) => pet.bondXp === 0));
+  assert.equal(state.journey.currentNode, 0);
+  assert.deepEqual(state.journey.snapshots, []);
+  assert.deepEqual(state.journey.chapters, []);
+});
+
+test("retired demo-mode vaults cannot leak placeholder finances into the release", () => {
+  const state = prepareReleaseState(createSeedState(), new Date("2026-07-21T12:00:00.000Z"));
+  assert.equal(state.profile.dataMode, "personal");
+  assert.equal(state.profile.tutorialComplete, false);
+  assert.deepEqual([state.accounts, state.transactions, state.subscriptions, state.debts, state.goals, state.investments], [[], [], [], [], [], []]);
+  assert.equal(getHoardSummary(state).total, 0);
+});
+
+test("guided setup progress, completion, and replay preserve user records and rewards", () => {
+  const state = createEmptyState();
+  state.accounts = [{ id: "keeper-account", name: "Everyday", type: "transaction", balance: 42, includedInHoard: true, chamberId: "hearth", icon: "wallet", color: "#123456", archived: false, reconciliationStatus: "reconciled" }];
+  state.progression.xp = 37;
+  const records = structuredClone(state.accounts);
+  const stepped = setGuidedTutorialStep(state, 99);
+  assert.equal(stepped.profile.tutorialChapter, 6);
+  const completed = completeGuidedTutorial(stepped);
+  assert.equal(completed.profile.tutorialComplete, true);
+  assert.equal(completed.profile.onboardingComplete, true);
+  assert.equal(completed.profile.dataMode, "personal");
+  assert.deepEqual(completed.accounts, records);
+  assert.equal(completed.progression.xp, 37);
+  const replaying = restartGuidedTutorial(completed);
+  assert.equal(replaying.profile.tutorialComplete, false);
+  assert.equal(replaying.profile.tutorialChapter, 0);
+  assert.deepEqual(replaying.accounts, records);
+  assert.equal(replaying.progression.xp, 37);
+});
 
 test("subscription cadences normalize to a monthly planning cost", () => {
   const subscription = createSeedState().subscriptions[0];

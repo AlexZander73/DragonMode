@@ -5,6 +5,20 @@ const DB_VERSION = 5;
 const STORE = "app-state";
 const STATE_KEY = "primary";
 
+export function serializeStateBackup(state: DragonState): string {
+  return JSON.stringify(state, null, 2);
+}
+
+export function parseStateBackup(text: string): DragonState {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("This backup is not valid JSON");
+  }
+  return normalizeState(parsed);
+}
+
 const openVault = (): Promise<IDBDatabase> =>
   new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
