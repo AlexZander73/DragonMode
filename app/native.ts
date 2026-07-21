@@ -53,7 +53,19 @@ export type NotificationAction =
   | { type: "subscription-use"; subscriptionId: string }
   | { type: "subscription-open"; subscriptionId: string }
   | { type: "wish-open"; wishId: string }
-  | { type: "open-screen"; screen: "lair" | "import" | "journey" | "analytics" | "tribute" | "hoard" };
+  | { type: "open-screen"; screen: "lair" | "pets" | "import" | "journey" | "analytics" | "tribute" | "hoard" };
+
+export function notificationActionFromEvent(event: { actionId: string; notification: { extra?: Record<string, unknown> } }): NotificationAction | null {
+  const extra = event.notification.extra ?? {};
+  if (event.actionId === "used-today" && extra.subscriptionId) return { type: "subscription-use", subscriptionId: String(extra.subscriptionId) };
+  if (extra.subscriptionId) return { type: "subscription-open", subscriptionId: String(extra.subscriptionId) };
+  if (extra.wishId) return { type: "wish-open", wishId: String(extra.wishId) };
+  const targetScreen = extra.targetScreen ?? (extra.petId ? "pets" : undefined);
+  if (["lair", "pets", "import", "journey", "analytics", "tribute", "hoard"].includes(String(targetScreen))) {
+    return { type: "open-screen", screen: String(targetScreen) as Extract<NotificationAction, { type: "open-screen" }>["screen"] };
+  }
+  return null;
+}
 
 export async function setupNotificationActions(onAction: (action: NotificationAction) => void) {
   if (!Capacitor.isNativePlatform()) return () => undefined;
@@ -78,11 +90,8 @@ export async function setupNotificationActions(onAction: (action: NotificationAc
     ],
   });
   const listener = await LocalNotifications.addListener("localNotificationActionPerformed", (event) => {
-    const extra = event.notification.extra ?? {};
-    if (event.actionId === "used-today" && extra.subscriptionId) onAction({ type: "subscription-use", subscriptionId: String(extra.subscriptionId) });
-    else if (extra.subscriptionId) onAction({ type: "subscription-open", subscriptionId: String(extra.subscriptionId) });
-    else if (extra.wishId) onAction({ type: "wish-open", wishId: String(extra.wishId) });
-    else if (["lair", "import", "journey", "analytics", "tribute", "hoard"].includes(String(extra.targetScreen))) onAction({ type: "open-screen", screen: String(extra.targetScreen) as Extract<NotificationAction, { type: "open-screen" }>["screen"] });
+    const action = notificationActionFromEvent(event);
+    if (action) onAction(action);
   });
   return () => listener.remove();
 }
@@ -181,7 +190,7 @@ async function schedulePetReminder(state: DragonState, pet: DragonState["pets"][
   if (at.getTime() <= Date.now()) at.setTime(Date.now() + 5 * 60_000);
   const id = stableNotificationId(`pet-${pet.id}`);
   await LocalNotifications.cancel({ notifications: [{ id }] });
-  await LocalNotifications.schedule({ notifications: [{ id, title: `${pet.name} is ready for a visit`, body: "A gentle check-in is waiting. Nothing was lost, and there is never a penalty for returning later.", schedule: { at }, threadIdentifier: "dragon-mode-pets", extra: { petId: pet.id } }] });
+  await LocalNotifications.schedule({ notifications: [{ id, title: `${pet.name} is ready for a visit`, body: "A gentle check-in is waiting. Nothing was lost, and there is never a penalty for returning later.", schedule: { at }, threadIdentifier: "dragon-mode-pets", extra: { petId: pet.id, targetScreen: "pets" } }] });
 }
 
 export async function reconcileNotificationSchedule(state: DragonState) {

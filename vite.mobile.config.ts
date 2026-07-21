@@ -14,5 +14,15 @@ export default defineConfig({
     outDir: resolve(projectRoot, "mobile-dist"),
     emptyOutDir: true,
     target: "es2022",
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/react") || id.includes("node_modules/scheduler")) return "react";
+          if (id.includes("node_modules/lucide-react")) return "icons";
+          if (id.includes("node_modules/@capacitor")) return "native";
+          return undefined;
+        },
+      },
+    },
   },
 });

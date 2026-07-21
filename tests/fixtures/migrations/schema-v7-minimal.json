@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 7,
+  "profile": {
+    "displayName": "Migration Keeper",
+    "title": "Vaultwarden",
+    "dragonName": "Moss",
+    "selectedDragonColor": "Emerald",
+    "selectedLairTheme": "Sky Vault",
+    "reducedMotion": true,
+    "soundEnabled": false,
+    "hapticsEnabled": false,
+    "notificationsEnabled": false,
+    "notificationPreferences": {},
+    "notificationQuietStart": "20:30",
+    "notificationQuietEnd": "07:30",
+    "reviewDay": 3,
+    "reviewHour": 19,
+    "rotateOwnedSkins": false,
+    "plainLanguage": true,
+    "fontScale": 1.2,
+    "tutorialComplete": true,
+    "tutorialChapter": 0,
+    "onboardingComplete": true,
+    "dataMode": "personal",
+    "preferredCurrency": "AUD",
+    "locale": "en-AU",
+    "minimumBuffer": 1200,
+    "comfortableMonthlyCost": 2800,
+    "essentialMonthlyCost": 1800,
+    "lifestyleMonthlyCost": 3200,
+    "selectedPetId": "p1"
+  },
+  "chambers": [
+    { "id": "hearth", "name": "The Hearth", "practicalName": "Everyday", "amount": 420, "target": 900, "color": "#e99a26", "icon": "flame", "type": "essential", "sortOrder": 0 },
+    { "id": "vault", "name": "Deep Vault", "practicalName": "Savings", "amount": 2100, "target": 5000, "color": "#2377ca", "icon": "vault", "type": "savings", "sortOrder": 1 }
+  ],
+  "accounts": [
+    { "id": "legacy-bank", "name": "Legacy Everyday", "type": "transaction", "balance": 420, "includedInHoard": true, "chamberId": "hearth", "icon": "wallet", "color": "#123456", "archived": false },
+    { "id": "legacy-saver", "name": "Legacy Saver", "type": "savings", "balance": 2100, "apy": 4.5, "includedInHoard": true, "chamberId": "vault", "icon": "vault", "color": "#456789", "archived": false }
+  ],
+  "transactions": [
+    { "id": "legacy-tx", "accountId": "legacy-bank", "date": "2026-07-01T12:00:00.000Z", "merchant": "Legacy Market", "amount": 25, "direction": "expense", "category": "The Hearth", "note": "preserve me", "status": "cleared", "createdManually": true }
+  ],
+  "subscriptions": [],
+  "quests": [],
+  "debts": [],
+  "wishes": [],
+  "goals": [
+    { "id": "legacy-goal", "name": "Rainy day", "targetAmount": 3000, "currentAmount": 600, "deadline": "2027-01-01T12:00:00.000Z", "icon": "shield", "color": "#55aa88", "linkedAccountIds": ["legacy-saver"] }
+  ],
+  "investments": [],
+  "pets": [
+    { "id": "p1", "name": "Cinder", "kind": "Ember fox", "bondXp": 44, "mood": "content", "lastInteraction": "2026-07-19T12:00:00.000Z", "cadence": "daily", "asset": "/characters/pet-cinder-v1.png", "unlocked": true }
+  ],
+  "imports": { "batches": [], "reconciliations": [], "rules": [], "mappingTemplates": [] },
+  "checkIns": { "history": [], "returnEmbers": 2, "loreKeys": 1 },
+  "education": { "completedLoreIds": ["compound-explorer"], "savedScenarioAssumptions": { "compound-explorer": { "Principal": 1000 } } },
+  "journey": {
+    "enabled": true,
+    "selectedAvatarId": "asha",
+    "cadence": "weekly",
+    "comparisonDays": 7,
+    "stabilityPercent": 50,
+    "lastOpenedAt": "2026-07-20T12:00:00.000Z",
+    "lastSnapshotAt": "2026-07-20T12:00:00.000Z",
+    "currentNode": 2,
+    "snapshots": [],
+    "chapters": [],
+    "incomeSources": [],
+    "idleRewards": [{ "id": "legacy-estimate", "from": "2026-07-01T00:00:00.000Z", "to": "2026-07-02T00:00:00.000Z", "estimatedInterest": 1.25, "estimatedDividends": 0, "total": 1.25, "starShards": 5, "sources": [] }],
+    "starShards": 37,
+    "marketAutoRefresh": false,
+    "marketRefreshHours": 24
+  },
+  "projections": { "rangeMonths": 6, "activeScenario": "Current Flight", "scenarios": {} },
+  "progression": {
+    "level": 4,
+    "xp": 450,
+    "nextLevelXp": 700,
+    "title": "Emberkeeper",
+    "relics": ["Legacy Lantern"],
+    "unlockedCosmetics": ["Emerald"],
+    "completedQuestCount": 3,
+    "milestones": ["legacy-milestone"],
+    "rewardEventIds": ["legacy-reward"],
+    "storyChoices": { "legacy-choice": "protect" }
+  },
+  "updatedAt": "2026-07-20T12:00:00.000Z"
+}
