@@ -16,6 +16,7 @@
     "test:contracts": "node --test tests/release-contract.test.mjs",
     "test": "npm run test:domain && npm run build && npm run test:rendered && npm run test:contracts",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern mobile-dist --ignore-pattern artifacts --ignore-pattern ios/App/App/public --ignore-pattern .next",
+    "audit:production": "npm audit --omit=dev --audit-level=moderate",
     "appstore:preflight": "node scripts/app-store-preflight.mjs",
     "ios:build": "bash scripts/ios-build.sh",
     "simulator:certify": "bash scripts/simulator-certify.sh",
@@ -36,14 +37,13 @@
     "@capacitor/splash-screen": "^8.0.2",
     "drizzle-orm": "0.45.2",
     "lucide-react": "^0.468.0",
-    "next": "16.2.6",
+    "next": "16.2.10",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },
   "devDependencies": {
-    "@capacitor/assets": "^3.0.5",
-    "@cloudflare/vite-plugin": "1.37.1",
-    "@cloudflare/workers-types": "^4.20260702.1",
+    "@cloudflare/vite-plugin": "1.45.1",
+    "@cloudflare/workers-types": "5.20260721.1",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
@@ -52,13 +52,17 @@
     "@vitejs/plugin-rsc": "0.5.26",
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
-    "eslint-config-next": "16.2.6",
+    "eslint-config-next": "16.2.10",
+    "postcss": "8.5.20",
     "react-server-dom-webpack": "19.2.6",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
     "vinext": "0.0.50",
-    "vite": "8.0.13",
-    "wrangler": "4.92.0"
+    "vite": "8.1.5",
+    "wrangler": "4.112.0"
+  },
+  "overrides": {
+    "postcss": "8.5.20"
   },
   "type": "module"
 }

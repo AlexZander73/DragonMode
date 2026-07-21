@@ -6,6 +6,7 @@ const root = resolve(import.meta.dirname, "..");
 const noIos = process.argv.includes("--no-ios");
 const startedAt = new Date();
 const stages = [
+  ["production dependency audit", "audit:production"],
   ["lint", "lint"],
   ["typecheck", "typecheck"],
   ["domain and fixture tests", "test:domain"],

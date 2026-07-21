@@ -13,20 +13,36 @@ npm run release:verify
 
 On macOS this executes, in order:
 
-1. ESLint;
-2. TypeScript;
-3. domain, import-fixture, migration, backup, and notification-routing tests;
-4. production web build;
-5. rendered-output tests;
-6. release-contract and placeholder checks;
-7. code-split mobile build;
-8. App Store metadata/privacy/icon preflight;
-9. unsigned iOS Simulator build.
+1. production dependency audit with zero known runtime vulnerabilities;
+2. ESLint;
+3. TypeScript;
+4. domain, import-fixture, migration, backup, and notification-routing tests;
+5. production web build;
+6. rendered-output tests;
+7. release-contract and placeholder checks;
+8. code-split mobile build;
+9. App Store metadata/privacy/icon preflight;
+10. unsigned iOS Simulator build.
 
 The ignored machine-readable reports are written to `artifacts/release/` so a
 local run does not dirty the repository. Linux CI uses
 `npm run release:verify -- --no-ios`; a separate macOS job builds the native
 target.
+
+## Dependency-security policy
+
+Release verification fails when npm reports a moderate-or-higher production
+dependency advisory. The 21 July 2026 maintenance pass removed the unused
+`@capacitor/assets` generator, updated Next, Vite, Wrangler, and the Cloudflare
+plugin to compatible patched releases, and pins Next's transitive PostCSS to
+8.5.20. `npm audit --omit=dev` is clean.
+
+The full development-tree audit still reports four moderate findings inherited
+from `drizzle-kit`'s deprecated internal `@esbuild-kit` loader. It is used only
+by the opt-in schema-generation command, not shipped in the application. npm's
+suggested remediation is an incompatible downgrade, so it is deliberately not
+applied. Keep the generator local-only and re-check when Drizzle publishes a
+fixed dependency chain.
 
 ## Automated import matrix
 

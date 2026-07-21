@@ -106,6 +106,7 @@ them:
 ## Final submission gate
 
 - Run `npm run release:verify` from the exact source revision being archived.
+- Confirm `npm run audit:production` reports zero known vulnerabilities.
 - Run `npm run simulator:certify` and inspect both images.
 - Complete the physical-iPhone matrix in `RELEASE_CHECKLIST.md`.
 - Run `npm run appstore:preflight`; warnings should be limited to owner-gated
