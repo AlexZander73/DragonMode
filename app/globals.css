@@ -188,7 +188,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, label:focus-wit
 .round-icon { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: #3671bc; color: white; }.round-icon.credit { background: #e07b30; }.round-icon.investment { background: #3aa65d; }
 .cream-list .add-row { grid-template-columns: 21px 1fr; color: #49309d; font-weight: 800; }
 .transaction-panel { padding-top: 7px; }.transaction-row { grid-template-columns: 34px 1fr auto; }.transaction-glyph { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: #463a7a; color: white; font-weight: 900; }.transaction-glyph.unusual { background: #b92336; }
-.transaction-row b { font-size: 11px; }.transaction-row b.income, .detail-stack strong.income { color: #168843; }.transaction-row b.expense, .detail-stack strong.expense { color: #9a2740; }
+.transaction-row b { font-size: 11px; }.transaction-row b.income, .detail-stack strong.income { color: #168843; }.transaction-row b.expense, .detail-stack strong.expense { color: #9a2740; }.transaction-row b.paired, .detail-stack strong.paired { color: #5b55d6; }
 
 .primary-button, .secondary-button, .danger-button { min-height: 44px; padding: 9px 13px; border-radius: 10px; border: 1px solid rgba(255,255,255,.22); display: inline-flex; align-items: center; justify-content: center; gap: 7px; color: #fff; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; cursor: pointer; }
 .primary-button { background: linear-gradient(180deg, color-mix(in srgb, var(--theme) 80%, #6a50df), color-mix(in srgb, var(--theme-dark) 88%, #30205f)); box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 4px 9px rgba(0,0,0,.25); }

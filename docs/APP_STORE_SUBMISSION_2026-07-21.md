@@ -41,7 +41,8 @@ These tools provide information and estimates, not financial advice.
 
 Release 1.0 requires no DragonMode sign-in, requests no bank credentials, makes
 no market-data calls, and stores the vault locally on the device. Export a JSON
-backup before changing devices or deleting the app.
+backup before changing devices or deleting the app. DragonMode records user-entered
+and imported information only; it cannot initiate, schedule, send, or receive money.
 
 ### Keywords draft
 

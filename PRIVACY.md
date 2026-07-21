@@ -6,6 +6,7 @@ Dragon Mode 1.0 is a local-first financial tracking app with manual, pasted, and
 
 - No Dragon Mode sign-in or user profile is required.
 - No bank, brokerage, or merchant login is requested.
+- Dragon Mode cannot initiate, schedule, send, receive, or otherwise move money.
 - Financial records are stored in the app's on-device IndexedDB vault.
 - Pasted text and CSV/OFX/QFX/QIF files are read only after a user action. The original staged source rows, parser settings, import receipts, reconciliation history, and locally saved rules remain in the device vault for provenance and undo.
 - Import is defensively limited to 5 MB and 10,000 source lines per batch.

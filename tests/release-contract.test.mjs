@@ -25,6 +25,7 @@ test("guided setup is live, skippable, replayable, and preserves records", async
 
 test("manual tracking language and quiet home tools stay intentional", async () => {
   const [page, css] = await Promise.all([read("app/page.tsx"), read("app/globals.css")]);
+  const manualMovementForm = page.slice(page.indexOf("function AddTransaction"), page.indexOf("function AddSubscription"));
   assert.match(page, /Map your first balance/);
   assert.match(page, /This is a manual tracking record, not a bank connection/);
   assert.match(page, /Your Dragon \{state\.profile\.dragonName\}/);
@@ -32,6 +33,11 @@ test("manual tracking language and quiet home tools stay intentional", async () 
   assert.doesNotMatch(page, /Start from zero, on purpose/);
   assert.match(page, /hoard-check-launcher/);
   assert.match(page, /Read a statement/);
+  assert.match(page, /Pair as one movement/);
+  assert.match(page, /cannot move, send, or schedule money/);
+  assert.match(page, /Any real movement happens through your own provider/);
+  assert.doesNotMatch(page, /Transfer between mapped balances|Record transfer|Move treasure to the Deep Vault|Confirm transfer/);
+  assert.doesNotMatch(manualMovementForm, /transfer/i);
   assert.match(css, /\.mobile-shell\s*\{[^}]*height: 100dvh/s);
   assert.match(css, /\.bottom-nav\s*\{[^}]*inset: auto 0 0/s);
 });
@@ -70,6 +76,7 @@ test("release metadata, local-only privacy, and non-advice boundaries are explic
   assert.match(privacyManifest, /<key>NSPrivacyTracking<\/key>\s*<false\/>/);
   assert.match(privacy, /does not collect data\s+from the app/i);
   assert.match(privacy, /does\s+not place trades/i);
+  assert.match(privacy, /cannot initiate, schedule, send, receive, or otherwise move money/i);
   assert.match(capacitor, /appId: "app\.dragonmode\.mobile"/);
 });
 
