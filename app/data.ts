@@ -620,12 +620,12 @@ export type DragonState = {
 export const SCHEMA_VERSION = 8;
 
 export const JOURNEY_AVATARS: JourneyAvatar[] = [
-  { id: "asha", name: "Asha Emberwright", role: "Forge-mage", pronouns: "she/her", trait: "Turns small, steady actions into durable tools.", asset: "/journey/avatar-asha-v1.png", color: "#d87a3d" },
-  { id: "kael", name: "Kael Windmere", role: "Wind cartographer", pronouns: "he/him", trait: "Finds a workable route when income changes direction.", asset: "/journey/avatar-kael-v1.png", color: "#397fca" },
-  { id: "bramble", name: "Bramble Stoneheart", role: "Vault archivist", pronouns: "she/her", trait: "Remembers every victory, especially the quiet ones.", asset: "/journey/avatar-bramble-v1.png", color: "#8c56b8" },
-  { id: "sol", name: "Sol Arden", role: "Celestial navigator", pronouns: "they/them", trait: "Reads long horizons without losing sight of today.", asset: "/journey/avatar-sol-v1.png", color: "#5268bd" },
-  { id: "pip", name: "Pip Reedwhistle", role: "Ledger-bard", pronouns: "they/them", trait: "Makes irregular income feel visible and worth celebrating.", asset: "/journey/avatar-pip-v1.png", color: "#4d9b67" },
-  { id: "mara", name: "Mara Ironroot", role: "Bridge-keeper", pronouns: "she/her", trait: "Repairs the next safe step without judging the storm.", asset: "/journey/avatar-mara-v1.png", color: "#b98635" },
+  { id: "asha", name: "Asha Emberwright", role: "Forge-mage", pronouns: "she/her", trait: "Turns small, steady actions into durable tools.", asset: "./journey/avatar-asha-v1.png", color: "#d87a3d" },
+  { id: "kael", name: "Kael Windmere", role: "Wind cartographer", pronouns: "he/him", trait: "Finds a workable route when income changes direction.", asset: "./journey/avatar-kael-v1.png", color: "#397fca" },
+  { id: "bramble", name: "Bramble Stoneheart", role: "Vault archivist", pronouns: "she/her", trait: "Remembers every victory, especially the quiet ones.", asset: "./journey/avatar-bramble-v1.png", color: "#8c56b8" },
+  { id: "sol", name: "Sol Arden", role: "Celestial navigator", pronouns: "they/them", trait: "Reads long horizons without losing sight of today.", asset: "./journey/avatar-sol-v1.png", color: "#5268bd" },
+  { id: "pip", name: "Pip Reedwhistle", role: "Ledger-bard", pronouns: "they/them", trait: "Makes irregular income feel visible and worth celebrating.", asset: "./journey/avatar-pip-v1.png", color: "#4d9b67" },
+  { id: "mara", name: "Mara Ironroot", role: "Bridge-keeper", pronouns: "she/her", trait: "Repairs the next safe step without judging the storm.", asset: "./journey/avatar-mara-v1.png", color: "#b98635" },
 ];
 
 const daysFromNow = (days: number) => {
@@ -750,9 +750,9 @@ export const createSeedState = (): DragonState => ({
     { id: "i2", accountId: "a3", name: "Retirement Reserve", type: "retirement", units: 1, unitPrice: 2550, contributions: 2380, annualReturnAssumption: 5, note: "Manually tracked retirement balance.", updatedAt: daysAgo(3) },
   ],
   pets: [
-    { id: "cinder", name: "Cinder", species: "Ember sprite", cadence: "daily", lastInteraction: daysAgo(2), bondXp: 42, mood: "waiting", asset: "/characters/pet-cinder-v1.png", color: "#ef6a22" },
-    { id: "quill", name: "Quill", species: "Scroll fox", cadence: "weekly", lastInteraction: daysAgo(3), bondXp: 78, mood: "bright", asset: "/characters/pet-quill-v1.png", color: "#d89545" },
-    { id: "luna", name: "Luna", species: "Moon tortoise", cadence: "monthly", lastInteraction: daysAgo(36), bondXp: 118, mood: "waiting", asset: "/characters/pet-luna-v1.png", color: "#7774dc" },
+    { id: "cinder", name: "Cinder", species: "Ember sprite", cadence: "daily", lastInteraction: daysAgo(2), bondXp: 42, mood: "waiting", asset: "./characters/pet-cinder-v1.png", color: "#ef6a22" },
+    { id: "quill", name: "Quill", species: "Scroll fox", cadence: "weekly", lastInteraction: daysAgo(3), bondXp: 78, mood: "bright", asset: "./characters/pet-quill-v1.png", color: "#d89545" },
+    { id: "luna", name: "Luna", species: "Moon tortoise", cadence: "monthly", lastInteraction: daysAgo(36), bondXp: 118, mood: "waiting", asset: "./characters/pet-luna-v1.png", color: "#7774dc" },
   ],
   imports: {
     batches: [],
@@ -899,6 +899,7 @@ export const createEmptyState = (): DragonState => {
 };
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+const relativeAssetPath = (value: string): string => value.startsWith("/") ? `.${value}` : value;
 
 export function normalizeState(input: unknown): DragonState {
   if (!isObject(input)) throw new Error("Invalid Dragon Mode export");
@@ -976,10 +977,14 @@ export function normalizeState(input: unknown): DragonState {
     visualRelicId: goal.visualRelicId ?? "star" as const,
     note: goal.note ?? "A protected goal for the road ahead.",
   })) : seed.goals;
-  const pets = Array.isArray(source.pets) ? source.pets.map((pet, index) => ({
-    ...seed.pets[index % seed.pets.length],
-    ...pet,
-  })) : seed.pets;
+  const pets = Array.isArray(source.pets) ? source.pets.map((pet, index) => {
+    const fallbackPet = seed.pets[index % seed.pets.length];
+    return {
+      ...fallbackPet,
+      ...pet,
+      asset: relativeAssetPath(pet.asset ?? fallbackPet.asset),
+    };
+  }) : seed.pets;
   const journey = {
     ...seed.journey,
     ...(source.journey ?? {}),

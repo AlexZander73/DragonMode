@@ -846,7 +846,7 @@ function HoardScreen({ state, summary, navigate, setSheet }: { state: DragonStat
             })}
             <button className="add-row" type="button" onClick={() => setSheet({ type: "add-account", title: "Map a balance" })}><Plus size={19} /> Map another balance</button>
           </div>
-          <SceneCompanion asset="/characters/pet-quill-v1.png" eyebrow="The keykeeper" title="Quill knows every vault door" body="Balance names, providers, and chamber links stay editable. The fox only keeps the map tidy." icons={[LockKeyhole, WalletCards, Landmark]} />
+          <SceneCompanion asset="./characters/pet-quill-v1.png" eyebrow="The keykeeper" title="Quill knows every vault door" body="Balance names, providers, and chamber links stay editable. The fox only keeps the map tidy." icons={[LockKeyhole, WalletCards, Landmark]} />
         </>
       )}
       {view === "Transactions" && (
@@ -1609,7 +1609,7 @@ function StoryScene({ storyId, state, updateState, setToast, setSheet }: { story
   const scenes = {
     "vault-answers": {
       speaker: "Moss",
-      asset: "/characters/moss-standing-v1.png",
+      asset: "./characters/moss-standing-v1.png",
       eyebrow: "Milestone chapter",
       opening: `The vault did not open because the hoard was perfect. It opened because you returned, paid attention, and protected what mattered. Level ${state.progression.level} carries every one of those choices.`,
       ending: "The emerald doors answer with a warm light. Nothing you earned here can be taken by a difficult month.",
@@ -1617,7 +1617,7 @@ function StoryScene({ storyId, state, updateState, setToast, setSheet }: { story
     },
     "narrow-pass": {
       speaker: "Orin, Flight Keeper",
-      asset: "/characters/flight-wizard-v2.png",
+      asset: "./characters/flight-wizard-v2.png",
       eyebrow: "Resilience chapter",
       opening: "The path has narrowed. That can feel frightening—but narrow is not closed. We do not need to solve the whole mountain tonight. We only need one kind next step, and rest is allowed.",
       ending: "Orin redraws the map around your real life. The route is gentler now, and hope remains part of the plan.",
@@ -1625,7 +1625,7 @@ function StoryScene({ storyId, state, updateState, setToast, setSheet }: { story
     },
     "ancient-guardian": {
       speaker: "Orin, Flight Keeper",
-      asset: "/characters/flight-wizard-v2.png",
+      asset: "./characters/flight-wizard-v2.png",
       eyebrow: state.progression.level >= 10 ? "Title chapter · unlocked" : "A future chapter",
       opening: state.progression.level >= 10 ? "The old door recognises you—not by wealth, but by the patience, honesty, and care you carried here. The title of Ancient Guardian is yours." : "Beyond the ridge, an old door waits for Level 10. It is not withholding approval. It is simply saving a celebration for the keeper you are already becoming.",
       ending: "The future vault leaves a small light burning at the horizon. You are welcome on the path at every pace.",
