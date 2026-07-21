@@ -2,13 +2,13 @@
 
 **Protect your hoard. Rest easier.**
 
-Dragon Mode is a visual-first fantasy finance mobile MVP. It turns accounts, spending, recurring costs, savings, projections, purchase decisions, debt, and financial maintenance into a bright dragon-hoard adventure without shame or punishment.
+Dragon Mode is a visual-first fantasy finance mobile MVP. It turns manually mapped balances, spending, recurring costs, savings, projections, purchase decisions, debt, and financial maintenance into a bright dragon-hoard adventure without shame or punishment.
 
 ## Included product
 
-- A local-first, no-account financial tracker with one consistent five-tab mobile navigation system.
+- A local-first, no-sign-in financial tracker with one consistent five-tab mobile navigation system.
 - Trusted Ledger capture for natural one-line entries, pasted bank rows, CSV, OFX/QFX, and QIF, with staged preview, field confidence, saved mappings, readable cleanup rules, provenance, and defensive file limits.
-- Duplicate, pending-to-posted, refund, reused-ID, and owned-account transfer handling that never removes similar movements without the user’s confirmation.
+- Duplicate, pending-to-posted, refund, reused-ID, and mapped-balance transfer handling that never removes similar movements without the user’s confirmation.
 - Reconciliation status, mapped-through dates, visible differences, receipts, original source rows, and exact batch undo.
 - A calm daily/weekly/pay-cycle/monthly Hoard Check with at most one daily review, fixed stewardship rewards, no punitive streak, and no wealth-scaled progression.
 - Dated Idle Vault interest illustrations split across confirmed balance, rate, promotion, and bonus-condition periods; posted interest is compared separately and dividend yield never appears as spendable cash.
@@ -50,4 +50,4 @@ npx cap open ios
 npx cap open android
 ```
 
-The mobile app stores MVP data locally on the device and does not require an account, backend, or bank connection.
+The mobile app stores MVP data locally on the device and does not require sign-in, a backend, or a bank connection.

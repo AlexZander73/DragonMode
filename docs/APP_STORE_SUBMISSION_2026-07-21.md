@@ -26,7 +26,7 @@ login.
 DragonMode is a kind, local-first financial tracker built to make checking in
 feel approachable.
 
-Map the accounts and movements that matter to you, paste or import common bank
+Map the balances and movements that matter to you, paste or import common bank
 exports into a review-first Trusted Ledger, and see balances, recurring costs,
 goals, debt, savings estimates, and patterns without shame or pressure.
 
@@ -39,7 +39,7 @@ DragonMode includes editable educational calculators and dated interest
 illustrations. Inputs, assumptions, exclusions, and sources remain visible.
 These tools provide information and estimates, not financial advice.
 
-Release 1.0 requires no DragonMode account, requests no bank credentials, makes
+Release 1.0 requires no DragonMode sign-in, requests no bank credentials, makes
 no market-data calls, and stores the vault locally on the device. Export a JSON
 backup before changing devices or deleting the app.
 
@@ -56,7 +56,7 @@ recommend products, or retrieve market data in release mode.
 
 The optional Relic Constellations reveal system uses only earned in-app keys.
 Keys and Stardust cannot be purchased, watched for ads, exchanged for money, or
-derived from account balances, spending, debt, or estimated interest. Odds and
+derived from mapped balances, spending, debt, or estimated interest. Odds and
 guarantees are visible, direct crafting is available, and cosmetics affect no
 financial outcome.
 
@@ -67,7 +67,7 @@ restore are in the same Local-first records section.
 ## App Privacy draft
 
 Select the equivalent of **Data Not Collected** for the current app-authored
-release behaviour. The implementation has no analytics, advertising, account,
+release behaviour. The implementation has no analytics, advertising, sign-in,
 cloud-sync, bank-connection, crash-reporting, or enabled market-data service.
 Reconcile this answer against the final generated archive before submission.
 
@@ -79,14 +79,14 @@ collected-data declarations.
 
 Use final, legible iPhone frames in this order:
 
-1. zero-state Lair with “Start from zero, on purpose” guided setup;
+1. first-run Lair with the live “Let’s map one thing together” guide;
 2. Trusted Ledger preview showing original rows and calm duplicate review;
 3. Lair after a small fictional/redacted vault has been mapped;
 4. Idle Vault with a dated promotion boundary and estimate wording;
 5. an auto-filled Lore calculator with assumptions and exclusions visible;
 6. optional Living Atlas or earned Relic Constellations story frame.
 
-Never use real account numbers, real bank branding, identifiable merchants, or
+Never use real financial identifiers, real bank branding, identifiable merchants, or
 personal financial values in marketing screenshots. Use the committed fixture
 merchants or a separately prepared fictional simulator vault.
 

@@ -4,7 +4,7 @@ Dragon Mode 1.0 is a local-first financial tracking app with manual, pasted, and
 
 ## Release data behaviour
 
-- No Dragon Mode account is required.
+- No Dragon Mode sign-in or user profile is required.
 - No bank, brokerage, or merchant login is requested.
 - Financial records are stored in the app's on-device IndexedDB vault.
 - Pasted text and CSV/OFX/QFX/QIF files are read only after a user action. The original staged source rows, parser settings, import receipts, reconciliation history, and locally saved rules remain in the device vault for provenance and undo.
@@ -12,7 +12,7 @@ Dragon Mode 1.0 is a local-first financial tracking app with manual, pasted, and
 - Market retrieval is disabled, so the release app makes no market-data calls.
 - Notifications are optional, sparse, and requested only after the user enables
   them. Their bodies use generic wording and do not include balances, amounts,
-  merchants, account names, or imported source text.
+  merchants, mapped-balance names, or imported source text.
 - JSON export happens only after the user taps Export.
 - JSON export covers the complete vault, including imports, reconciliation,
   rules, education, story, and cosmetic history. JSON import reads only the file
@@ -30,7 +30,7 @@ API access.
 
 Based on the current app-authored behaviour, Dragon Mode does not collect data
 from the app. Re-check these answers whenever analytics, crash reporting,
-accounts, cloud sync, bank connections, or experimental market retrieval are
+user profiles, cloud sync, bank connections, or experimental market retrieval are
 enabled.
 
 ## Financial boundary

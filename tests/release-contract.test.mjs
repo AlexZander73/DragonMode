@@ -23,6 +23,19 @@ test("guided setup is live, skippable, replayable, and preserves records", async
   assert.doesNotMatch(onboarding, /progression|accounts:|transactions:|rewards/);
 });
 
+test("manual tracking language and quiet home tools stay intentional", async () => {
+  const [page, css] = await Promise.all([read("app/page.tsx"), read("app/globals.css")]);
+  assert.match(page, /Map your first balance/);
+  assert.match(page, /This is a manual tracking record, not a bank connection/);
+  assert.match(page, /Your Dragon \{state\.profile\.dragonName\}/);
+  assert.doesNotMatch(page, />Add (an |first )?account</i);
+  assert.doesNotMatch(page, /Start from zero, on purpose/);
+  assert.match(page, /hoard-check-launcher/);
+  assert.match(page, /Read a statement/);
+  assert.match(css, /\.mobile-shell\s*\{[^}]*height: 100dvh/s);
+  assert.match(css, /\.bottom-nav\s*\{[^}]*inset: auto 0 0/s);
+});
+
 test("keyboard, motion, text, and semantic accessibility contracts remain present", async () => {
   const [page, css, layout, mobile] = await Promise.all([
     read("app/page.tsx"),
