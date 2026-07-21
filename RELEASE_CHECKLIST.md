@@ -6,8 +6,9 @@
 - branded app icon and launch screen
 - production metadata and version 1.0 build number 1
 - Apple privacy manifest and export-compliance declaration
-- local-first onboarding with demo or empty-vault choice
+- local-first zero-state launch with a skippable, replayable guide over the live app
 - JSON import/export and schema migration
+- retired demo-mode device copies and imports migrate to a fresh zero-state vault
 - Trusted Ledger paste/CSV/OFX/QFX/QIF staging, provenance, reconciliation,
   receipt, and exact undo
 - fixed/capped Hoard Check rewards and idempotent progression events
@@ -19,6 +20,13 @@
 - sparse optional local notifications with quiet hours and private generic text
 - release market-data retrieval disabled
 - domain, rendered HTML, type, lint, web build, and simulator build checks
+- one-command staged release verification and GitHub Actions web/iOS jobs
+- committed CSV/OFX/QFX/QIF ambiguity, duplicate, provenance, undo, backup, and
+  schema-v7 migration fixtures
+- unsigned native build plus automated Simulator fresh-install/relaunch capture
+- mobile vendor/native code splitting with a roughly 332 KiB main app chunk
+- keyboard focus trapping, zero-valid planning controls, and notification route
+  contract coverage
 
 ## Before TestFlight or App Store submission
 
@@ -29,10 +37,10 @@
 - Complete App Privacy using `PRIVACY.md` and re-check all third-party package
   disclosures in the generated archive.
 - Add support URL, privacy-policy URL, age rating, category, and review contact.
-- In review notes, explain that all financial values are fictional in demo mode,
-  manual in personal mode, stored locally, and not connected to a bank.
-- Run a fresh-install TestFlight pass covering onboarding, empty-vault setup,
-  demo mode, all notification deep links, JSON backup/restore, and relaunch
+- In review notes, explain that every financial value starts at zero, is entered
+  or imported by the user, is stored locally, and is not connected to a bank.
+- Run a fresh-install TestFlight pass covering live guided setup, skip/replay,
+  fresh-start reset, all notification deep links, JSON backup/restore, and relaunch
   persistence.
 - On a real device, import representative CSV, OFX/QFX, and QIF files; confirm
   ambiguous date/sign mappings cannot commit, original rows remain inspectable,
@@ -47,3 +55,8 @@
 
 Android and tablet-specific visual certification are intentionally outside this
 iPhone-first release pass.
+
+The complete automated path and store-copy draft are in
+`docs/RELEASE_AUTOMATION_2026-07-21.md` and
+`docs/APP_STORE_SUBMISSION_2026-07-21.md`. The dated next-session brief is
+`docs/CODEX_RELEASE_HANDOFF_2026-07-21.md`.

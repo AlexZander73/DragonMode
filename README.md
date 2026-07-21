@@ -17,7 +17,8 @@ Dragon Mode is a visual-first fantasy finance mobile MVP. It turns accounts, spe
 - Earned-only Relic Constellations with visible odds, fifth-reveal new-item protection, twelfth-reveal choice, Mythic ceiling, Stardust crafting, full reveal history, and permanent seasonal archives. There is no purchase path and cosmetics affect no financial outcome.
 - Declared versus transaction-linked goal progress, idempotent XP events, permanent levels/relics/pet bonds, previewable owned skins, and optional weekly rotation.
 - Independently configurable, actionable local reminders with quiet hours and generic notification text that excludes financial details.
-- IndexedDB persistence, schema-v8 migration, complete JSON backup/restore, demo reset, and branded PWA/iOS/Android shells.
+- A genuinely empty personal vault on first launch, with a skippable live guided setup that can be replayed from Settings without changing records or rewards.
+- IndexedDB persistence, schema-v8 migration, complete JSON backup/restore, fresh-start reset, and branded PWA/iOS/Android shells.
 
 ## Navigation
 
@@ -33,12 +34,13 @@ npm run dev
 ## Validation builds
 
 ```bash
-npm run build
-npm run mobile:build
-npm test
-npm run lint
-npx tsc --noEmit
+npm run release:verify
 ```
+
+The release gate runs lint, type, domain/fixture, web, rendered-output,
+release-contract, mobile, App Store preflight, and (on macOS) unsigned iOS build
+stages. See `docs/RELEASE_AUTOMATION_2026-07-21.md` for focused commands,
+simulator certification, screenshot capture, and CI details.
 
 ## Capacitor
 

@@ -17,8 +17,8 @@ Dragon Mode 1.0 is a local-first financial tracking app with manual, pasted, and
 - JSON export covers the complete vault, including imports, reconciliation,
   rules, education, story, and cosmetic history. JSON import reads only the file
   the user explicitly chooses.
-- Restore demo, Start empty, and app deletion cover the new import and collection
-  records along with existing finance records.
+- Start fresh and app deletion cover import and collection records along with
+  existing finance records. The guided setup never inserts sample finance data.
 - Deleting the app may delete the local vault; users should export before
   changing devices.
 

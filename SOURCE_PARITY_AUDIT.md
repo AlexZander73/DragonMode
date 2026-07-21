@@ -101,13 +101,17 @@ These are outside the completed July trust-and-engagement initiative:
   privacy, security, consent, and accreditation/intermediary decision. The
   current release intentionally requests no bank credentials.
 - Wishes use the shared Wish Vault scene; per-wish photo import is not present.
-- Debt “custom order” can be selected but debts cannot yet be drag-reordered.
+- Debt comparison currently offers the implemented smallest-first,
+  highest-interest-first, and minimum-payment paths; drag-reordering can be
+  added later if real user demand justifies the extra control.
 - Projection history does not yet offer an arbitrary custom date range.
 - English is the only authored content locale even though currency, number, and
   date formatting are locale-aware.
-- Real-device accessibility, notification, import-file, migration, and backup
-  certification across the full iOS/Android/web matrix remains a release QA
-  responsibility.
+- Automated accessibility contracts, notification routing, import fixtures,
+  schema-v7 migration, backup round trips, unsigned iOS builds, and Simulator
+  fresh-install/relaunch checks are now in the release gate. Physical-device
+  VoiceOver, permission delivery, redacted provider-file, signed TestFlight,
+  Android, and tablet certification remain release QA responsibilities.
 
 ## Optional inputs that would improve fidelity further
 
