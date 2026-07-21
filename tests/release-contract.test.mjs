@@ -27,7 +27,7 @@ test("manual tracking language and quiet home tools stay intentional", async () 
   const [page, css] = await Promise.all([read("app/page.tsx"), read("app/globals.css")]);
   const manualMovementForm = page.slice(page.indexOf("function AddTransaction"), page.indexOf("function AddSubscription"));
   assert.match(page, /Map your first balance/);
-  assert.match(page, /This is a manual tracking record, not a bank connection/);
+  assert.match(page, /You enter this balance yourself/);
   assert.match(page, /Your Dragon \{state\.profile\.dragonName\}/);
   assert.doesNotMatch(page, />Add (an |first )?account</i);
   assert.doesNotMatch(page, /Start from zero, on purpose/);
@@ -40,6 +40,16 @@ test("manual tracking language and quiet home tools stay intentional", async () 
   assert.doesNotMatch(manualMovementForm, /transfer/i);
   assert.match(css, /\.mobile-shell\s*\{[^}]*height: 100dvh/s);
   assert.match(css, /\.bottom-nav\s*\{[^}]*inset: auto 0 0/s);
+});
+
+test("user-facing copy stays plain and reminder choices cannot overlap", async () => {
+  const [page, css] = await Promise.all([read("app/page.tsx"), read("app/globals.css")]);
+  assert.match(page, /Choose only the reminders that help/);
+  assert.match(page, /Backups and reset/);
+  assert.match(page, /Statement helper/);
+  assert.doesNotMatch(page, /Local-first records|Privacy at a glance|release candidate|Release mode|market-data calls|System permission|parser confidence|Imported source and provenance|Export complete JSON backup|Import JSON backup/);
+  assert.match(css, /\.notification-list\s*\{[^}]*display: grid/s);
+  assert.match(css, /\.notification-choice\s*\{[^}]*display: grid[^}]*grid-template-columns: 20px minmax\(0, 1fr\)/s);
 });
 
 test("keyboard, motion, text, and semantic accessibility contracts remain present", async () => {

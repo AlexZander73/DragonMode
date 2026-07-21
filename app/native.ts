@@ -230,7 +230,7 @@ export async function reconcileNotificationSchedule(state: DragonState) {
   const changed = state.subscriptions.filter((subscription) => subscription.priceChange);
   if (preferences.priceChanges && changed.length) await LocalNotifications.schedule({ notifications: [{ id: priceId, title: "A recurring cost changed", body: "A price change is ready for a calm review. No action is assumed.", schedule: { at: outsideQuietHours(new Date(Date.now() + 5 * 60_000), state) }, actionTypeId: "open-useful-action", extra: { targetScreen: "tribute" }, threadIdentifier: "dragon-mode-price-changes" }] });
   const reviewNeeded = state.accounts.some((account) => account.reconciliationStatus === "needs-review") || state.imports.batches.some((batch) => batch.status === "committed" && batch.candidates.some((candidate) => candidate.proposedAction === "hold" && !candidate.committedTransactionId && candidate.resolution !== "ignore" && candidate.resolution !== "one-is-echo"));
-  if (preferences.importReview && reviewNeeded) await scheduleActionReminder({ key: "import-review", title: "A ledger review is ready", body: "One imported or reconciled record is waiting for your confirmation.", at: new Date(Date.now() + 5 * 60_000), targetScreen: "import", state });
+  if (preferences.importReview && reviewNeeded) await scheduleActionReminder({ key: "import-review", title: "A statement row needs your help", body: "One row is waiting for you to check it.", at: new Date(Date.now() + 5 * 60_000), targetScreen: "import", state });
   else await cancelNotification("import-review");
   const importantUncertainty = reviewNeeded || state.transactions.some((transaction) => (transaction.unusual || transaction.duplicate) && !transaction.reviewedAt);
   if (preferences.importantUncertainty && importantUncertainty) await scheduleActionReminder({ key: "important-uncertainty", title: "One useful check is waiting", body: "DragonMode found an uncertainty that only you can confirm. Nothing was changed automatically.", at: new Date(Date.now() + 7 * 60_000), targetScreen: reviewNeeded ? "import" : "hoard", state });
@@ -252,7 +252,7 @@ export async function reconcileNotificationSchedule(state: DragonState) {
   if (preferences.expectedIncome && expectedDates[0]) await scheduleActionReminder({ key: "expected-income", title: "An expected-income checkpoint is near", body: "Review whether the mapped timing still looks right. Irregular income is always allowed.", at: expectedDates[0], targetScreen: "journey", state });
   else await cancelNotification("expected-income");
   const rateDates = state.accounts.flatMap((account) => [account.promotionEnd, account.maturityDate, account.nextInterestDate].filter(Boolean).map((value) => new Date(value!))).filter((date) => date.getTime() > Date.now()).sort((a, b) => a.getTime() - b.getTime());
-  if (preferences.rateOrMaturity && rateDates[0]) await scheduleActionReminder({ key: "rate-or-maturity", title: "An account date is approaching", body: "A mapped promotion, interest, or maturity date is ready for review.", at: new Date(rateDates[0].getTime() - 24 * 60 * 60_000), targetScreen: "hoard", state });
+  if (preferences.rateOrMaturity && rateDates[0]) await scheduleActionReminder({ key: "rate-or-maturity", title: "A savings date is approaching", body: "A special rate, interest date, or end date is ready for a quick check.", at: new Date(rateDates[0].getTime() - 24 * 60 * 60_000), targetScreen: "hoard", state });
   else await cancelNotification("rate-or-maturity");
-  return { scheduled: true, reason: "Friendly reminders reconciled." };
+  return { scheduled: true, reason: "Reminder choices saved." };
 }

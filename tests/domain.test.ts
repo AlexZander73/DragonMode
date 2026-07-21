@@ -422,7 +422,7 @@ test("trusted import blocks ambiguous date and sign defaults until the mapping i
   const source = "Date,Description,Amount\n07/08/2026,Moon Market,25.00";
   const ambiguous = stageTextImport(state, source, { accountId: "bank", sourceKind: "csv" });
   assert.equal(ambiguous.mappingConfirmed, false);
-  assert.throws(() => commitImportBatch(state, ambiguous), /Confirm the import mapping/);
+  assert.throws(() => commitImportBatch(state, ambiguous), /Check how these rows were read first/);
   const confirmed = stageTextImport(state, source, { accountId: "bank", sourceKind: "csv", dateOrder: "DMY", signConvention: "positive-expense" });
   assert.equal(confirmed.mappingConfirmed, true);
   assert.equal(commitImportBatch(state, confirmed).transactions[0].direction, "expense");

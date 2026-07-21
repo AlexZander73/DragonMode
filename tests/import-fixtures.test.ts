@@ -87,7 +87,7 @@ test("ambiguous fixture cannot commit until date and sign conventions are explic
   const ambiguous = stageTextImport(state, source, { accountId: "fixture-bank", sourceKind: "csv" });
   assert.equal(ambiguous.mappingConfirmed, false);
   assert.equal(ambiguous.ambiguityWarnings.length, 2);
-  assert.throws(() => commitImportBatch(state, ambiguous), /Confirm the import mapping/);
+  assert.throws(() => commitImportBatch(state, ambiguous), /Check how these rows were read first/);
   const confirmed = stageTextImport(state, source, {
     accountId: "fixture-bank",
     sourceKind: "csv",

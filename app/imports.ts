@@ -320,7 +320,7 @@ export function stageTextImport(state: DragonState, text: string, options: Impor
   if (normalizedText.length > MAX_SOURCE_CHARACTERS) throw new Error("This source is larger than the 5 MB safety limit. Split it into smaller statement periods.");
   const sourceLineCount = normalizedText.split(/\r?\n/).length;
   if (sourceLineCount > MAX_SOURCE_ROWS) throw new Error("This source has more than 10,000 rows. Split it into smaller statement periods.");
-  if (!state.accounts.some((account) => account.id === options.accountId)) throw new Error("Choose an account for this import");
+  if (!state.accounts.some((account) => account.id === options.accountId)) throw new Error("Choose a balance for these rows");
   const batchId = uid("import");
   const dateOrder = options.mappingTemplate?.dateOrder ?? options.dateOrder ?? (options.locale?.startsWith("en-US") ? "MDY" : "DMY");
   const signConvention = options.mappingTemplate?.signConvention ?? options.signConvention ?? "negative-expense";
@@ -389,7 +389,7 @@ export function stageTextImport(state: DragonState, text: string, options: Impor
     if (priorBatch || exact) {
       proposedAction = "skip-exact";
       draft.matchedTransactionId = exact?.id;
-      draft.duplicateReasons.push(priorBatch ? "This exact source was already imported" : "Stable source identity already exists");
+      draft.duplicateReasons.push(priorBatch ? "This exact row was already added" : "A row with the same bank reference already exists");
     } else if (pending) {
       proposedAction = "hold";
       draft.lifecycleRelationship = "pending-posted";
@@ -405,12 +405,12 @@ export function stageTextImport(state: DragonState, text: string, options: Impor
       draft.transferCandidateId = transfer.id;
       draft.matchedTransactionId = transfer.id;
       draft.duplicateClusterId = stableSourceHash(`transfer|${transfer.id}|${draft.id}`);
-      draft.duplicateReasons.push("An equal opposite movement appears in another owned account");
+      draft.duplicateReasons.push("An equal opposite movement appears in another balance you track");
     } else if (possible) {
       proposedAction = "hold";
       draft.matchedTransactionId = possible.id;
       draft.duplicateClusterId = stableSourceHash(`echo|${possible.id}|${similarity}`);
-      draft.duplicateReasons.push("Same account, date, amount, direction, and merchant");
+      draft.duplicateReasons.push("Same balance, date, amount, direction, and merchant");
       if (possible.createdManually) draft.duplicateReasons.push("An existing manual entry may match this import");
     }
     candidates.push({ ...draft, proposedAction });
@@ -562,8 +562,8 @@ function applyCandidate(state: DragonState, batch: ImportBatch, candidate: Impor
 }
 
 export function commitImportBatch(state: DragonState, stagedBatch: ImportBatch, options: ImportCommitOptions = {}): DragonState {
-  if (stagedBatch.status !== "staged") throw new Error("Only a staged import can be committed");
-  if (!stagedBatch.mappingConfirmed) throw new Error(`Confirm the import mapping first: ${stagedBatch.ambiguityWarnings.join("; ")}`);
+  if (stagedBatch.status !== "staged") throw new Error("These rows are no longer waiting to be saved");
+  if (!stagedBatch.mappingConfirmed) throw new Error(`Check how these rows were read first: ${stagedBatch.ambiguityWarnings.join("; ")}`);
   let working: DragonState = state;
   const results = { added: 0, matched: 0, replaced: 0, skipped: 0, held: 0 };
   const committedIds = new Map<string, string>();
@@ -639,7 +639,7 @@ export function commitImportBatch(state: DragonState, stagedBatch: ImportBatch, 
 
 export function undoImportBatch(state: DragonState, batchId: string): DragonState {
   const batch = state.imports.batches.find((item) => item.id === batchId);
-  if (!batch || batch.status !== "committed" || !batch.undoSnapshot) throw new Error("This import no longer has an undo snapshot");
+  if (!batch || batch.status !== "committed" || !batch.undoSnapshot) throw new Error("This import can no longer be undone");
   return {
     ...state,
     accounts: structuredClone(batch.undoSnapshot.accounts),

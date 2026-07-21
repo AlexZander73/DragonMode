@@ -301,7 +301,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, label:focus-wit
 .preference-grid, .notification-settings { margin-top: 9px; padding: 8px 10px 10px; border: 1px solid rgba(255,255,255,.15); border-radius: 10px; background: #171f39; }
 .preference-grid label { margin-top: 7px; display: grid; grid-template-columns: 1fr auto; gap: 5px; color: #cbd6e5; font-size: 9px; font-weight: 800; }
 .preference-grid select { grid-column: 1/-1; min-height: 42px; padding: 6px 8px; border: 1px solid #66738c; border-radius: 8px; background: #0c1730; color: white; }
-.preference-grid input[type="range"] { grid-column: 1/-1; width: 100%; }.notification-settings > p { margin: 0 0 7px; color: #b3bed0; font-size: 9px; }.notification-settings .check-label { margin-top: 5px; color: #2e2530; }
+.preference-grid input[type="range"] { grid-column: 1/-1; width: 100%; }
+.notification-settings > p { margin: 2px 0 10px; color: #b3bed0; font-size: 9px; line-height: 1.5; }
+.notification-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.notification-heading .section-title { flex: 1; margin: 0; }
+.notification-heading > span { max-width: 48%; padding: 5px 8px; border: 1px solid rgba(129, 220, 186, .3); border-radius: 999px; color: #a9e9cf; background: rgba(33, 85, 76, .36); font-size: 8px; font-weight: 850; line-height: 1.25; text-align: center; }
+.notification-list { display: grid; gap: 6px; }
+.notification-choice { width: 100%; min-height: 46px; padding: 9px 11px; display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 9px; align-items: center; border: 1px solid rgba(255, 207, 119, .24); border-radius: 10px; color: #eef1f8; background: rgba(10, 18, 38, .72); font-size: 10px; font-weight: 800; line-height: 1.35; cursor: pointer; }
+.notification-choice input { width: 18px; height: 18px; min-height: 18px; margin: 0; accent-color: #8d5bd2; }
+.notification-choice span { min-width: 0; overflow-wrap: anywhere; }
 .wish-selector { margin-bottom: 7px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #ffe4ae; font-size: 9px; font-weight: 800; }.wish-selector select { min-height: 36px; padding: 5px 8px; border: 1px solid #e18bc7; border-radius: 8px; background: #361c4b; color: white; }
 .trend-months { margin-top: 4px; display: grid; grid-template-columns: repeat(6,1fr); text-align: center; color: #8caac5; font-size: 7px; }.spark-bars i.negative { background: linear-gradient(#ff9b8f,#b2345b); }
 .tribute-alert { min-height: 112px; padding-right: 42%; background-image: linear-gradient(90deg, rgba(81,32,61,.98) 0 47%, rgba(81,32,61,.35) 72%, transparent), url("/art/tribute-guardian-v3.png"); background-size: cover; background-position: 75% 54%; }
@@ -1366,7 +1374,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, label:focus-wit
 .lair-theme-picker > div button.selected { border-color: #71569a; box-shadow: inset 0 0 0 1px #71569a; background: #f7f2fb; }
 .lair-theme-picker > div button.locked { opacity: .5; }
 .lair-theme-picker > p { margin: 0; color: #756b7b; font-size: .67rem; line-height: 1.4; }
-.notification-rhythm { margin-top: 9px; padding: 10px; border-radius: 13px; background: #f1edf5; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.notification-rhythm { margin-top: 10px; padding: 10px; border-radius: 13px; background: #f1edf5; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .notification-rhythm label { display: grid; gap: 4px; color: #655a70; font-size: .67rem; font-weight: 900; }
 .notification-rhythm input, .notification-rhythm select { min-width: 0; width: 100%; border: 1px solid #d7cedd; border-radius: 9px; padding: 8px; background: white; color: #403649; font: inherit; }
 .story-accessibility { padding: 10px 14px 14px; display: grid; gap: 8px; background: #171a35; }

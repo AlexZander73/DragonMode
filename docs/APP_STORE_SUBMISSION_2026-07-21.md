@@ -18,17 +18,16 @@ Protect your hoard. Rest easier.
 ### Promotional text
 
 Turn a calm look at your finances into an encouraging fantasy adventure—with
-private local tracking, forgiving check-ins, useful estimates, and no bank
-login.
+tracking you control, forgiving check-ins, useful estimates, and no bank login.
 
 ### Description
 
-DragonMode is a kind, local-first financial tracker built to make checking in
-feel approachable.
+DragonMode is a kind financial tracker built to make checking in feel
+approachable.
 
-Map the balances and movements that matter to you, paste or import common bank
-exports into a review-first Trusted Ledger, and see balances, recurring costs,
-goals, debt, savings estimates, and patterns without shame or pressure.
+Map the balances and movements that matter to you, paste or import a statement,
+check each row before saving, and see recurring costs, goals, debt, savings
+estimates, and patterns without shame or pressure.
 
 Your Lair grows through healthy stewardship—not wealth, spending, debt, or
 financial-product choices. Optional stories, companions, permanent seasonal
@@ -39,10 +38,9 @@ DragonMode includes editable educational calculators and dated interest
 illustrations. Inputs, assumptions, exclusions, and sources remain visible.
 These tools provide information and estimates, not financial advice.
 
-Release 1.0 requires no DragonMode sign-in, requests no bank credentials, makes
-no market-data calls, and stores the vault locally on the device. Export a JSON
-backup before changing devices or deleting the app. DragonMode records user-entered
-and imported information only; it cannot initiate, schedule, send, or receive money.
+DragonMode asks for no sign-in or bank login. Save a backup before changing
+devices or deleting the app. DragonMode records only what you enter or import;
+it cannot initiate, schedule, send, or receive money.
 
 ### Keywords draft
 
@@ -62,8 +60,8 @@ guarantees are visible, direct crafting is available, and cosmetics affect no
 financial outcome.
 
 To replay the live guide: Treasury → Settings → Replay guided setup. To erase
-the local test vault: Treasury → Settings → Start fresh at zero. JSON backup and
-restore are in the same Local-first records section.
+the test data: Treasury → Settings → Start fresh at zero. Backup and restore are
+in the Backups and reset section.
 
 ## App Privacy draft
 
