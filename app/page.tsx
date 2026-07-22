@@ -42,7 +42,6 @@ import {
   Sparkles,
   Sprout,
   Star,
-  Sword,
   Target,
   Telescope,
   Trash2,
@@ -110,6 +109,48 @@ const ICONS: Record<string, LucideIcon> = {
   wallet: WalletCards,
 };
 
+type AtlasIconName = "coins" | "ledger" | "shield" | "crystal" | "flame" | "vault" | "hammer" | "heart" | "sprout" | "scroll" | "star" | "chain" | "questbook" | "scrying" | "crown" | "paw";
+
+const ATLAS_ICON_POSITION: Record<AtlasIconName, [number, number]> = {
+  coins: [0, 0],
+  ledger: [1, 0],
+  shield: [2, 0],
+  crystal: [3, 0],
+  flame: [0, 1],
+  vault: [1, 1],
+  hammer: [2, 1],
+  heart: [3, 1],
+  sprout: [0, 2],
+  scroll: [1, 2],
+  star: [2, 2],
+  chain: [3, 2],
+  questbook: [0, 3],
+  scrying: [1, 3],
+  crown: [2, 3],
+  paw: [3, 3],
+};
+
+const ICON_TO_ATLAS: Record<string, AtlasIconName> = {
+  flame: "flame",
+  vault: "vault",
+  hammer: "hammer",
+  heart: "heart",
+  sprout: "sprout",
+  scroll: "scroll",
+  star: "star",
+  shield: "shield",
+  list: "questbook",
+  card: "chain",
+  cap: "scroll",
+  car: "hammer",
+  wallet: "coins",
+};
+
+function AtlasIcon({ name, className = "" }: { name: AtlasIconName; className?: string }) {
+  const [column, row] = ATLAS_ICON_POSITION[name];
+  return <span className={`atlas-icon ${className}`} style={{ backgroundPosition: `${column * 33.333}% ${row * 33.333}%` }} aria-hidden="true" />;
+}
+
 const tabDefaults: Record<MainTab, Screen> = {
   lair: "lair",
   hoard: "hoard",
@@ -141,12 +182,12 @@ const screenTab: Record<Screen, MainTab> = {
   settings: "treasury",
 };
 
-const navItems: Array<{ id: MainTab; label: string; practical: string; icon: LucideIcon }> = [
-  { id: "lair", label: "Lair", practical: "Home", icon: Home },
-  { id: "hoard", label: "Hoard", practical: "Money", icon: Landmark },
-  { id: "quests", label: "Quests", practical: "Actions", icon: ListChecks },
-  { id: "scrying", label: "Scrying", practical: "Insights", icon: Telescope },
-  { id: "treasury", label: "Treasury", practical: "Planning", icon: WalletCards },
+const navItems: Array<{ id: MainTab; label: string; practical: string; icon: AtlasIconName }> = [
+  { id: "lair", label: "Lair", practical: "Home", icon: "crown" },
+  { id: "hoard", label: "Hoard", practical: "Money", icon: "vault" },
+  { id: "quests", label: "Quests", practical: "Actions", icon: "questbook" },
+  { id: "scrying", label: "Scrying", practical: "Insights", icon: "scrying" },
+  { id: "treasury", label: "Treasury", practical: "Planning", icon: "scroll" },
 ];
 
 const APP_STARTED_AT = Date.now();
@@ -399,7 +440,6 @@ export default function DragonModeApp() {
 
         <nav className="bottom-nav" aria-label="Primary navigation">
           {navItems.map((item) => {
-            const Icon = item.icon;
             return (
               <button
                 key={item.id}
@@ -408,7 +448,7 @@ export default function DragonModeApp() {
                 aria-current={currentTab === item.id ? "page" : undefined}
                 onClick={() => navigate(tabDefaults[item.id])}
               >
-                <span className="nav-icon"><Icon size={20} strokeWidth={2.5} /></span>
+                <span className="nav-icon"><AtlasIcon name={item.icon} /></span>
                 <span>{state.profile.plainLanguage ? item.practical : item.label}</span>
               </button>
             );
@@ -430,9 +470,15 @@ export default function DragonModeApp() {
 }
 
 function ScreenHeader({ icon: Icon, title, subtitle, back, action }: { icon: LucideIcon; title: string; subtitle?: string; back?: () => void; action?: React.ReactNode }) {
+  const headerArt: Record<string, AtlasIconName> = {
+    "The Lair": "crown",
+    Hoard: "vault",
+    "Quest Board": "questbook",
+    "Scrying Pool": "scrying",
+  };
   return (
     <header className={`screen-header ${back ? "screen-header-back" : "screen-header-root"}`}>
-      {back ? <button className="icon-button" type="button" onClick={back} aria-label="Go back"><ArrowLeft size={22} /></button> : <span className="header-icon"><Icon size={22} /></span>}
+      {back ? <button className="icon-button" type="button" onClick={back} aria-label="Go back"><ArrowLeft size={22} /></button> : <span className="header-icon">{headerArt[title] ? <AtlasIcon name={headerArt[title]} /> : <Icon size={22} />}</span>}
       <div className="header-copy"><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>
       <div className="header-action">{action}</div>
     </header>
@@ -470,10 +516,10 @@ function LairScreen({ state, summary, navigate, updateState, setSheet, setToast 
   const safetyTitle = unusualCount ? "The dragon is watchful." : "The hoard is safe.";
   const safetyDetail = unusualCount ? `${unusualCount} movement${unusualCount === 1 ? "" : "s"} deserves a calm review.` : `${state.profile.dragonName} rests, but keeps one eye open.`;
   const metrics = [
-    { label: "Available", value: summary.available, icon: Coins, key: "available" },
-    { label: "Committed", value: summary.committed, icon: ScrollText, key: "committed" },
-    { label: "Guarded", value: summary.guarded, icon: ShieldCheck, key: "guarded" },
-    { label: "Invested", value: summary.invested, icon: Gem, key: "invested" },
+    { label: "Available", value: summary.available, icon: "coins" as const, key: "available" },
+    { label: "Committed", value: summary.committed, icon: "ledger" as const, key: "committed" },
+    { label: "Guarded", value: summary.guarded, icon: "shield" as const, key: "guarded" },
+    { label: "Invested", value: summary.invested, icon: "crystal" as const, key: "invested" },
   ];
   const selectedPet = state.pets.find((pet) => pet.id === state.profile.selectedPetId) ?? state.pets[0];
   const selectedPetStatus = selectedPet ? petCareStatus(selectedPet) : null;
@@ -521,16 +567,13 @@ function LairScreen({ state, summary, navigate, updateState, setSheet, setToast 
         <button type="button" onClick={() => navigate("hoard")}>Explore chambers <ChevronRight size={15} /></button>
       </section>
       <div className="metric-grid">
-        {metrics.map((metric) => {
-          const Icon = metric.icon;
-          return (
+        {metrics.map((metric) => (
             <button key={metric.label} type="button" className="metric-card" onClick={() => setSheet({ type: "metric", id: metric.key, title: metric.label })}>
-              <Icon size={22} />
+              <AtlasIcon name={metric.icon} />
               <span>{metric.label}</span>
               <strong>{formatGold(metric.value, 0)}</strong>
             </button>
-          );
-        })}
+        ))}
       </div>
       <section className="free-gold-card">
         <span><Coins size={20} /> Free Gold</span>
@@ -810,7 +853,7 @@ function HoardScreen({ state, summary, navigate, setSheet }: { state: DragonStat
     const dateMatches = dateFilter === "All dates" || (dateFilter === "This month" && new Date(transaction.date).getMonth() === new Date().getMonth() && new Date(transaction.date).getFullYear() === new Date().getFullYear()) || (dateFilter === "Last 30 days" && ageDays <= 30) || (dateFilter === "Last 90 days" && ageDays <= 90);
     return categoryMatches && accountMatches && typeMatches && dateMatches;
   });
-  if (!state.accounts.length) return <section className="screen screen-hoard hoard-empty"><ScreenHeader icon={Landmark} title="Hoard" subtitle="Treasury chambers" action={<button type="button" className="icon-button" onClick={() => setSheet({ type: "add-account", title: "Map your first balance" })} aria-label="Map a balance"><Plus size={21} /></button>} /><section className="hoard-empty-hero"><span aria-hidden="true" /><div><small>The treasury doors are open</small><strong>Map the first piece of your hoard.</strong><p>Cash, everyday money, savings, credit, loans, investments, or another asset—record only what feels useful.</p><button type="button" onClick={() => setSheet({ type: "add-account", title: "Map your first balance" })}><Landmark size={17} /> Map a balance</button></div></section><div className="empty-chamber-preview">{state.chambers.slice(0, 4).map((chamber) => { const Icon = ICONS[chamber.icon] ?? Gem; return <div key={chamber.id} style={{ "--chamber": chamber.color } as React.CSSProperties}><span><Icon size={19} /></span><strong>{chamber.name}</strong><small>{chamber.practicalName}</small></div>; })}</div><section className="local-promise"><ShieldCheck size={23} /><div><strong>Approximate is allowed.</strong><p>Every value can be edited, excluded from the total, archived, or exported later.</p></div></section></section>;
+  if (!state.accounts.length) return <section className="screen screen-hoard hoard-empty"><ScreenHeader icon={Landmark} title="Hoard" subtitle="Treasury chambers" action={<button type="button" className="icon-button" onClick={() => setSheet({ type: "add-account", title: "Map your first balance" })} aria-label="Map a balance"><Plus size={21} /></button>} /><section className="hoard-empty-hero"><span aria-hidden="true" /><div><small>The treasury doors are open</small><strong>Map the first piece of your hoard.</strong><p>Cash, everyday money, savings, credit, loans, investments, or another asset—record only what feels useful.</p><button type="button" onClick={() => setSheet({ type: "add-account", title: "Map your first balance" })}><Landmark size={17} /> Map a balance</button></div></section><div className="empty-chamber-preview">{state.chambers.slice(0, 4).map((chamber) => <div key={chamber.id} style={{ "--chamber": chamber.color } as React.CSSProperties}><AtlasIcon name={ICON_TO_ATLAS[chamber.icon] ?? "crystal"} /><strong>{chamber.name}</strong><small>{chamber.practicalName}</small></div>)}</div><section className="local-promise"><ShieldCheck size={23} /><div><strong>Approximate is allowed.</strong><p>Every value can be edited, excluded from the total, archived, or exported later.</p></div></section></section>;
   return (
     <section className={`screen screen-hoard hoard-view-${view.toLowerCase()}`}>
       <ScreenHeader icon={Landmark} title="Hoard" subtitle="Treasury chambers" action={<button type="button" className="icon-button" onClick={() => setSheet({ type: "add-transaction", title: "Add treasure movement" })} aria-label="Add movement"><Plus size={21} /></button>} />
@@ -822,11 +865,10 @@ function HoardScreen({ state, summary, navigate, setSheet }: { state: DragonStat
       {view === "Chambers" && (
         <div className="chamber-list">
           {state.chambers.map((chamber) => {
-            const Icon = ICONS[chamber.icon] ?? Gem;
             const progress = chamber.target > 0 ? Math.min(100, Math.round((chamber.amount / chamber.target) * 100)) : 0;
             return (
               <button key={chamber.id} type="button" className="chamber-card" style={{ "--chamber": chamber.color } as React.CSSProperties} onClick={() => setSheet({ type: "chamber", id: chamber.id, title: chamber.name })}>
-                <span className="chamber-icon"><Icon size={25} /></span>
+                <span className="chamber-icon"><AtlasIcon name={ICON_TO_ATLAS[chamber.icon] ?? "crystal"} /></span>
                 <span className="chamber-copy"><strong>{chamber.name}</strong><small>{chamber.practicalName}</small><i><b style={{ width: `${progress}%` }} /></i></span>
                 <span className="chamber-value"><strong>{formatGold(chamber.amount)}</strong><small>{progress}% of target</small></span>
                 <ChevronRight size={18} />
@@ -1054,10 +1096,9 @@ function QuestScreen({ state, navigate, updateState, setToast, setSheet }: { sta
       <button className="goals-portal" type="button" onClick={() => navigate("goals")}><span><Target size={23} /></span><div><strong>Protected Goals</strong><small>{state.goals.filter((goal) => goal.status === "active").length ? `${state.goals.filter((goal) => goal.status === "active").length} active milestone${state.goals.filter((goal) => goal.status === "active").length === 1 ? "" : "s"}` : "Choose a milestone that matters to you"}</small></div><ChevronRight size={19} /></button>
       <div className="quest-list">
         {visible.map((quest) => {
-          const Icon = ICONS[quest.icon] ?? Sword;
           return (
             <article className="quest-card" key={quest.id}>
-              <span className={`quest-illustration category-${quest.category.toLowerCase()} artifact-${quest.icon}`} aria-hidden="true"><Icon size={31} /></span>
+              <span className={`quest-illustration category-${quest.category.toLowerCase()} artifact-${quest.icon}`} aria-hidden="true"><AtlasIcon name={ICON_TO_ATLAS[quest.icon] ?? "questbook"} /></span>
               <div className="quest-copy"><strong>{quest.title}</strong><p>{quest.description}</p><small><Star size={13} /> {quest.estimatedMinutes} min · {quest.xp} XP {quest.progress && <b>{quest.progress}</b>}</small></div>
               <div className="quest-actions"><button type="button" className="quest-go" onClick={() => { const relatedTransaction = state.transactions.find((item) => item.id === quest.relatedEntityId); const relatedSubscription = state.subscriptions.find((item) => item.id === quest.relatedEntityId); if (relatedTransaction) setSheet({ type: "transaction", id: relatedTransaction.id, title: relatedTransaction.merchant }); else if (relatedSubscription) setSheet({ type: "subscription", id: relatedSubscription.id, title: relatedSubscription.name }); else setSheet({ type: "quest", id: quest.id, title: quest.title, body: quest.reason }); }}>GO!</button><button type="button" aria-label={`More options for ${quest.title}`} onClick={() => setSheet({ type: "quest", id: quest.id, title: quest.title, body: quest.reason })}><MoreHorizontal size={17} /></button></div>
               <div className="quest-quiet-actions"><button type="button" onClick={() => { updateQuest(quest, { snoozedUntil: new Date(Date.now() + 3 * 86_400_000).toISOString() }); setToast("Quest will return in 3 days"); }}>Remind later</button><button type="button" onClick={() => { updateQuest(quest, { dismissedAt: new Date().toISOString() }); setToast("Quest dismissed without penalty"); }}>Dismiss</button></div>
@@ -1295,7 +1336,8 @@ function WishScreen({ state, navigate, updateState, summary, setToast, setSheet 
     navigate(status === "saved" ? "goals" : "quests");
   };
   const fitsFreeGold = wish.price <= summary.freeGold;
-  const hibernationShift = Math.max(1, Math.ceil((wish.price / state.profile.comfortableMonthlyCost) * 30));
+  const comfortableMonthlyCost = state.profile.comfortableMonthlyCost || getMonthlyFlow(state).outflow;
+  const hibernationShift = comfortableMonthlyCost > 0 ? Math.max(1, Math.ceil((wish.price / comfortableMonthlyCost) * 30)) : null;
   const monthlySurplus = Math.max(1, getMonthlyFlow(state).net || 460);
   const savePaydays = Math.max(1, Math.ceil(wish.price / (monthlySurplus / 2)));
   const relatedRatings = state.transactions.filter((item) => item.category === wish.category && item.worthRating).map((item) => item.worthRating);
@@ -1312,8 +1354,8 @@ function WishScreen({ state, navigate, updateState, summary, setToast, setSheet 
       {restingWishes.length > 1 && <label className="wish-selector">Resting wish<select value={wish.id} onChange={(event) => { const next = state.wishes.find((item) => item.id === event.target.value); if (next) { setSelectedWishId(next.id); setRestDays(next.restDays); } }}>{restingWishes.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>}
       <section className="wish-frame"><div className="wish-product-art" /><div><strong>{wish.name}</strong><b>{formatGold(wish.price)}</b></div></section>
       <section className="rest-panel"><span>Resting for</span><Segmented options={["1 Night", "3 Days", "1 Week", "Custom"]} value={restDays === 1 ? "1 Night" : restDays === 3 ? "3 Days" : restDays === 7 ? "1 Week" : "Custom"} onChange={(value) => setRest(value === "1 Night" ? 1 : value === "3 Days" ? 3 : value === "1 Week" ? 7 : 14)} compact /><strong><Orbit size={18} /> Ends in {dayLabel(daysUntil(wish.endsAt))}</strong></section>
-      <section className="wish-impact"><div className="wish-dragon" /><p>{fitsFreeGold ? "It fits within your Free Gold" : "It is larger than your current Free Gold"} and would shift comfortable hibernation by <strong>{hibernationShift} days</strong>.</p></section>
-      <div className="impact-grid"><div><span>Free Gold after</span><strong>{formatGold(summary.freeGold - wish.price)}</strong></div><div><span>Hibernation shift</span><strong>− {hibernationShift} days</strong></div><div><span>Save time</span><strong>{savePaydays} payday{savePaydays === 1 ? "" : "s"}</strong></div><div><span>Similar worth rating</span><strong>{similarRating}</strong></div></div>
+      <section className="wish-impact"><div className="wish-dragon" /><p>{fitsFreeGold ? "It fits within your Free Gold" : "It is larger than your current Free Gold"}. {hibernationShift === null ? "Add a comfortable monthly cost—or keep recording spending—to estimate its hibernation shift." : <>It would shift comfortable hibernation by <strong>{hibernationShift} days</strong>.</>}</p></section>
+      <div className="impact-grid"><div><span>Free Gold after</span><strong>{formatGold(summary.freeGold - wish.price)}</strong></div><div><span>Hibernation shift</span><strong>{hibernationShift === null ? "Not estimated yet" : `− ${hibernationShift} days`}</strong></div><div><span>Save time</span><strong>{savePaydays} payday{savePaydays === 1 ? "" : "s"}</strong></div><div><span>Similar worth rating</span><strong>{similarRating}</strong></div></div>
       <p className="supportive-copy">Buying it is a valid outcome. The reward is for making the choice with the full map in view.</p>
       <div className="wish-actions"><button type="button" className="claim" onClick={() => setSheet({ type: "wish-claim", id: wish.id, title: `Claim treasure · ${wish.name}` })}>Claim treasure</button><button type="button" className="rest" onClick={() => { setRest(restDays + 3); setToast("Rest extended by 3 days"); }}>Rest longer</button><button type="button" className="save" onClick={() => decide("saved")}>Save toward it</button><button type="button" className="release" onClick={() => decide("released")}>Release</button></div>
     </section>
