@@ -44,3 +44,6 @@ next-env.d.ts
 /outputs/
 /work/
 /artifacts/
+
+# generated release download bundles (published through GitHub Releases)
+/DragonMode-Showcase-*.zip
