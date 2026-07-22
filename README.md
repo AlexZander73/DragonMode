@@ -35,6 +35,11 @@ All product decisions, source changes, and releases remain under human direction
 - A genuinely empty personal vault on first launch, with a skippable live guided setup that can be replayed from Settings without changing records or rewards.
 - IndexedDB persistence, schema-v8 migration, complete JSON backup/restore, fresh-start reset, and branded PWA/iOS/Android shells.
 
+## Visual asset libraries
+
+- The reference-parity scene and interface system is documented in [`docs/VISUAL_ASSET_GENERATION_2026-07-22.md`](docs/VISUAL_ASSET_GENERATION_2026-07-22.md).
+- The common finance pack provides 128 brand-neutral subscription, purchase, income, and investment icons across eight coordinated atlases. See [`docs/COMMON_FINANCE_ASSET_PACK_2026-07-22.md`](docs/COMMON_FINANCE_ASSET_PACK_2026-07-22.md) and the machine-readable [`manifest.json`](public/art/icon-packs/common-finance/manifest.json).
+
 ## Navigation
 
 The reference images contain a few inconsistent bottom bars. The implementation standardises Lair, Hoard, Quests, Scrying, and Treasury everywhere. See `NAVIGATION_NOTES.md` for the complete mapping.
