@@ -105,6 +105,8 @@ export type Transaction = {
   ruleIds?: string[];
   confidence?: number;
   reconciliationId?: string;
+  iconKey?: string;
+  iconMode?: "automatic" | "manual";
 };
 
 export type ImportSourceKind = "paste" | "csv" | "ofx" | "qfx" | "qif" | "json-backup" | "shared-file" | "statement-text";
@@ -271,6 +273,8 @@ export type Subscription = {
   trialEndDate?: string;
   color: string;
   glyph: string;
+  iconKey?: string;
+  iconMode?: "automatic" | "manual";
 };
 
 export type Quest = {
@@ -368,6 +372,8 @@ export type InvestmentPosition = {
   nextDividendDate?: string;
   note: string;
   updatedAt: string;
+  iconKey?: string;
+  iconMode?: "automatic" | "manual";
 };
 
 export type ProjectionScenario = {

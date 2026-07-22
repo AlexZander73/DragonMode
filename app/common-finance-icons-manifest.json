@@ -1,0 +1,198 @@
+{
+  "name": "DragonMode Common Finance Icon Pack",
+  "version": "1.0.0",
+  "generatedOn": "2026-07-22",
+  "itemCount": 128,
+  "grid": {
+    "columns": 4,
+    "rows": 4,
+    "backgroundSize": "400% 400%",
+    "positionStepPercent": 33.333333
+  },
+  "sheets": [
+    {
+      "id": "subscriptions-core",
+      "category": "subscription",
+      "file": "subscriptions-core-atlas-v1.png",
+      "items": [
+        { "key": "subscription.video-streaming", "label": "Video streaming" },
+        { "key": "subscription.music-streaming", "label": "Music streaming" },
+        { "key": "subscription.gaming", "label": "Gaming membership" },
+        { "key": "subscription.audiobook", "label": "Audiobook service" },
+        { "key": "subscription.news", "label": "Digital news" },
+        { "key": "subscription.cloud-storage", "label": "Cloud storage" },
+        { "key": "subscription.password-manager", "label": "Password manager" },
+        { "key": "subscription.security", "label": "Device security" },
+        { "key": "subscription.mobile-phone", "label": "Mobile phone plan" },
+        { "key": "subscription.home-internet", "label": "Home internet" },
+        { "key": "subscription.productivity-software", "label": "Productivity software" },
+        { "key": "subscription.creative-software", "label": "Creative software" },
+        { "key": "subscription.ai-assistant", "label": "AI assistant" },
+        { "key": "subscription.fitness-app", "label": "Fitness app" },
+        { "key": "subscription.meditation-app", "label": "Meditation app" },
+        { "key": "subscription.dating", "label": "Dating membership" }
+      ]
+    },
+    {
+      "id": "subscriptions-household",
+      "category": "subscription",
+      "file": "subscriptions-household-atlas-v1.png",
+      "items": [
+        { "key": "subscription.electricity", "label": "Electricity" },
+        { "key": "subscription.gas", "label": "Household gas" },
+        { "key": "subscription.water", "label": "Water utility" },
+        { "key": "subscription.home-insurance", "label": "Home or renter insurance" },
+        { "key": "subscription.vehicle-insurance", "label": "Vehicle insurance" },
+        { "key": "subscription.health-insurance", "label": "Health insurance" },
+        { "key": "subscription.gym", "label": "Gym membership" },
+        { "key": "subscription.transit-pass", "label": "Transit pass" },
+        { "key": "subscription.parking", "label": "Parking subscription" },
+        { "key": "subscription.child-care", "label": "Child care" },
+        { "key": "subscription.pet-plan", "label": "Pet care plan" },
+        { "key": "subscription.meal-kit", "label": "Meal kit" },
+        { "key": "subscription.grocery-delivery", "label": "Grocery delivery" },
+        { "key": "subscription.professional-membership", "label": "Professional membership" },
+        { "key": "subscription.recurring-charity", "label": "Recurring charity" },
+        { "key": "subscription.education", "label": "Education or course membership" }
+      ]
+    },
+    {
+      "id": "purchases-essential",
+      "category": "purchase",
+      "file": "purchases-essential-atlas-v1.png",
+      "items": [
+        { "key": "purchase.groceries", "label": "Groceries" },
+        { "key": "purchase.cafe", "label": "Cafe or coffee" },
+        { "key": "purchase.restaurant", "label": "Restaurant meal" },
+        { "key": "purchase.takeaway", "label": "Takeaway" },
+        { "key": "purchase.fuel", "label": "Fuel" },
+        { "key": "purchase.public-transit", "label": "Public transit fare" },
+        { "key": "purchase.taxi-rideshare", "label": "Taxi or rideshare" },
+        { "key": "purchase.pharmacy", "label": "Pharmacy" },
+        { "key": "purchase.doctor-dental", "label": "Doctor or dental" },
+        { "key": "purchase.clothing", "label": "Clothing" },
+        { "key": "purchase.shoes", "label": "Shoes" },
+        { "key": "purchase.toiletries", "label": "Toiletries" },
+        { "key": "purchase.household-supplies", "label": "Household supplies" },
+        { "key": "purchase.repairs-maintenance", "label": "Repairs or maintenance" },
+        { "key": "purchase.furniture-homewares", "label": "Furniture or homewares" },
+        { "key": "purchase.pet-supplies", "label": "Pet supplies" }
+      ]
+    },
+    {
+      "id": "purchases-lifestyle",
+      "category": "purchase",
+      "file": "purchases-lifestyle-atlas-v1.png",
+      "items": [
+        { "key": "purchase.electronics", "label": "Electronics" },
+        { "key": "purchase.phone-computer", "label": "Phone or computer" },
+        { "key": "purchase.games", "label": "Games" },
+        { "key": "purchase.books", "label": "Books" },
+        { "key": "purchase.cinema-concert", "label": "Cinema, theatre, or concert" },
+        { "key": "purchase.hobbies-crafts", "label": "Hobbies or crafts" },
+        { "key": "purchase.sports-outdoors", "label": "Sports or outdoors" },
+        { "key": "purchase.travel", "label": "Flights or travel" },
+        { "key": "purchase.hotel", "label": "Hotel" },
+        { "key": "purchase.gift", "label": "Gift" },
+        { "key": "purchase.charity", "label": "Charity" },
+        { "key": "purchase.beauty-hair", "label": "Beauty or hair" },
+        { "key": "purchase.bar-alcohol", "label": "Bar or alcohol" },
+        { "key": "purchase.theme-park-event", "label": "Theme park or event" },
+        { "key": "purchase.vehicle", "label": "Vehicle purchase" },
+        { "key": "purchase.home-improvement", "label": "Home improvement" }
+      ]
+    },
+    {
+      "id": "income-earned",
+      "category": "income",
+      "file": "income-earned-atlas-v1.png",
+      "items": [
+        { "key": "income.salary-wages", "label": "Salary or wages" },
+        { "key": "income.hourly-shift", "label": "Hourly or shift pay" },
+        { "key": "income.overtime", "label": "Overtime" },
+        { "key": "income.bonus", "label": "Bonus" },
+        { "key": "income.commission", "label": "Commission" },
+        { "key": "income.tips", "label": "Tips" },
+        { "key": "income.freelance", "label": "Freelance work" },
+        { "key": "income.contract-project", "label": "Contract or project pay" },
+        { "key": "income.business-sales", "label": "Business sales" },
+        { "key": "income.side-gig", "label": "Side gig" },
+        { "key": "income.consulting", "label": "Consulting" },
+        { "key": "income.royalties", "label": "Royalties" },
+        { "key": "income.creator-revenue", "label": "Creator or advertising revenue" },
+        { "key": "income.rental", "label": "Rental income" },
+        { "key": "income.reimbursement", "label": "Reimbursement" },
+        { "key": "income.government-benefit", "label": "Government benefit" }
+      ]
+    },
+    {
+      "id": "income-passive",
+      "category": "income",
+      "file": "income-passive-atlas-v1.png",
+      "items": [
+        { "key": "income.interest", "label": "Interest" },
+        { "key": "income.dividends", "label": "Dividends" },
+        { "key": "income.capital-gains", "label": "Capital gain" },
+        { "key": "income.pension", "label": "Pension or retirement income" },
+        { "key": "income.annuity", "label": "Annuity" },
+        { "key": "income.tax-refund", "label": "Tax refund" },
+        { "key": "income.insurance-payout", "label": "Insurance payout" },
+        { "key": "income.scholarship-grant", "label": "Scholarship or grant" },
+        { "key": "income.child-support", "label": "Child support" },
+        { "key": "income.partner-support", "label": "Partner support" },
+        { "key": "income.family-gift", "label": "Family gift" },
+        { "key": "income.inheritance", "label": "Inheritance" },
+        { "key": "income.cash-gift", "label": "Cash gift" },
+        { "key": "income.sold-belongings", "label": "Sale of belongings" },
+        { "key": "income.cashback-rewards", "label": "Cashback or rewards" },
+        { "key": "income.purchase-refund", "label": "Purchase refund" }
+      ]
+    },
+    {
+      "id": "investments-core",
+      "category": "investment",
+      "file": "investments-core-atlas-v1.png",
+      "items": [
+        { "key": "investment.cash", "label": "Cash holding" },
+        { "key": "investment.high-interest-savings", "label": "High-interest savings" },
+        { "key": "investment.term-deposit", "label": "Term deposit" },
+        { "key": "investment.government-bond", "label": "Government bond" },
+        { "key": "investment.corporate-bond", "label": "Corporate bond" },
+        { "key": "investment.bond-fund", "label": "Bond fund" },
+        { "key": "investment.broad-market-etf", "label": "Broad-market ETF" },
+        { "key": "investment.index-fund", "label": "Index fund" },
+        { "key": "investment.mutual-fund", "label": "Mutual fund" },
+        { "key": "investment.individual-stock", "label": "Individual stock" },
+        { "key": "investment.dividend-stock", "label": "Dividend stock" },
+        { "key": "investment.property-fund", "label": "Property fund or REIT" },
+        { "key": "investment.residential-property", "label": "Residential property" },
+        { "key": "investment.commercial-property", "label": "Commercial property" },
+        { "key": "investment.retirement", "label": "Retirement or superannuation" },
+        { "key": "investment.managed-portfolio", "label": "Managed portfolio" }
+      ]
+    },
+    {
+      "id": "investments-specialised",
+      "category": "investment",
+      "file": "investments-specialised-atlas-v1.png",
+      "items": [
+        { "key": "investment.international-shares", "label": "International shares" },
+        { "key": "investment.emerging-markets", "label": "Emerging markets" },
+        { "key": "investment.small-cap", "label": "Small-cap fund" },
+        { "key": "investment.sector-theme", "label": "Sector or thematic fund" },
+        { "key": "investment.sustainable", "label": "Sustainable fund" },
+        { "key": "investment.commodities", "label": "Commodities" },
+        { "key": "investment.precious-metals", "label": "Gold or precious metals" },
+        { "key": "investment.cryptocurrency", "label": "Cryptocurrency" },
+        { "key": "investment.venture-startup", "label": "Venture or startup investment" },
+        { "key": "investment.private-equity", "label": "Private equity" },
+        { "key": "investment.collectibles", "label": "Collectibles" },
+        { "key": "investment.education-fund", "label": "Education fund" },
+        { "key": "investment.health-savings", "label": "Health savings" },
+        { "key": "investment.employee-stock", "label": "Employee stock plan" },
+        { "key": "investment.options-derivatives", "label": "Options or derivatives" },
+        { "key": "investment.other", "label": "Other investment" }
+      ]
+    }
+  ]
+}
