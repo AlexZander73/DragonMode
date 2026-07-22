@@ -4,6 +4,21 @@
 
 Dragon Mode is a visual-first fantasy finance mobile MVP. It turns manually mapped balances, spending, recurring costs, savings, projections, purchase decisions, debt, and financial maintenance into a bright dragon-hoard adventure without shame or punishment.
 
+## Built with Codex and GPT-5.6
+
+Dragon Mode was developed with **OpenAI Codex, powered by GPT-5.6, as an active research, design, and engineering collaborator**. The developer set the product vision, requirements, safety boundaries, and creative direction; Codex helped turn that direction into a tested application.
+
+Codex and GPT-5.6 were used to:
+
+- Research financial-tracking patterns, approachable financial education, ethical habit design, idle-game reward loops, gacha safeguards, and story progression.
+- Translate the research into product specifications, implementation plans, feature priorities, and dated handoff documentation.
+- Build and refine the interface, import and reconciliation tools, calculators, projections, progression systems, story, collections, reminders, and mobile application shells.
+- Review user-facing language so Dragon Mode feels kind and clear, never presents itself as a bank, and does not imply that its educational illustrations are financial advice.
+- Find and remove placeholder behaviour, improve the guided tutorial and mobile layout, and evaluate confusing or unnecessary interface elements.
+- Create automated validation, regression tests, release checks, simulator workflows, technical documentation, and deployment support.
+
+All product decisions, source changes, and releases remain under human direction and review. Codex is a development tool used to create Dragon Mode; it is not a financial adviser and does not provide advice inside the app.
+
 ## Included product
 
 - A local-first, no-sign-in financial tracker with one consistent five-tab mobile navigation system.
