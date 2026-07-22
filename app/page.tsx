@@ -89,6 +89,7 @@ import { cancelClaimantReminder, cancelWishReminder, notificationPermission, pla
 import { createTransaction, deleteTransaction, replaceTransaction, syncInvestmentAccounts } from "./ledger";
 import { commitImportBatch, resolveCommittedCandidate, resolveImportCandidate, stageTextImport, undoImportBatch } from "./imports";
 import { clearState, loadState, parseStateBackup, saveState, serializeStateBackup } from "./storage";
+import { financeIconsForCategory, financeIconStyle, getFinanceIcon, resolveFinanceIconKey, type FinanceIconCategory, type FinanceIconMode } from "./common-finance-icons";
 
 type Screen = "lair" | "pets" | "journey" | "roster" | "idle" | "collection" | "hoard" | "import" | "quests" | "goals" | "analytics" | "lore" | "tribute" | "flight" | "wish" | "dragon" | "debt" | "investments" | "legacy" | "settings";
 type Sheet = { type: string; id?: string; title?: string; body?: string; preset?: Partial<Transaction> } | null;
@@ -149,6 +150,29 @@ const ICON_TO_ATLAS: Record<string, AtlasIconName> = {
 function AtlasIcon({ name, className = "" }: { name: AtlasIconName; className?: string }) {
   const [column, row] = ATLAS_ICON_POSITION[name];
   return <span className={`atlas-icon ${className}`} style={{ backgroundPosition: `${column * 33.333}% ${row * 33.333}%` }} aria-hidden="true" />;
+}
+
+function FinanceIcon({ title, category, iconKey, iconMode = "automatic", className = "" }: { title: string; category: FinanceIconCategory; iconKey?: string; iconMode?: FinanceIconMode; className?: string }) {
+  const resolvedKey = resolveFinanceIconKey(title, category, iconKey, iconMode);
+  return <span className={`common-finance-icon ${className}`} style={financeIconStyle(resolvedKey)} aria-hidden="true" />;
+}
+
+function FinanceIconPicker({ title, category, iconKey, iconMode, onChange }: { title: string; category: FinanceIconCategory; iconKey?: string; iconMode: FinanceIconMode; onChange: (key: string | undefined, mode: FinanceIconMode) => void }) {
+  const selected = getFinanceIcon(iconKey);
+  const isManual = iconMode === "manual" && selected?.category === category;
+  const resolvedKey = resolveFinanceIconKey(title, category, iconKey, iconMode);
+  const resolved = getFinanceIcon(resolvedKey);
+  return <section className="finance-icon-picker" aria-label="Choose an icon">
+    <div className="finance-icon-current">
+      <FinanceIcon title={title} category={category} iconKey={iconKey} iconMode={iconMode} />
+      <span><strong>{isManual ? "Your chosen icon" : "Automatic icon"}</strong><small>{resolved?.label ?? "General item"}{isManual ? "" : " · changes with the name"}</small></span>
+      {isManual && <button type="button" onClick={() => onChange(undefined, "automatic")}>Use automatic</button>}
+    </div>
+    <details>
+      <summary>Choose a different icon</summary>
+      <div className="finance-icon-grid">{financeIconsForCategory(category).map((icon) => <button type="button" className={isManual && icon.key === iconKey ? "selected" : ""} key={icon.key} onClick={() => onChange(icon.key, "manual")} aria-label={`Use ${icon.label}`} title={icon.label}><FinanceIcon title="" category={category} iconKey={icon.key} iconMode="manual" /><small>{icon.label}</small></button>)}</div>
+    </details>
+  </section>;
 }
 
 const tabDefaults: Record<MainTab, Screen> = {
@@ -598,7 +622,7 @@ function LairScreen({ state, summary, navigate, updateState, setSheet, setToast 
       {(state.profile.dataMode === "personal" && (!state.transactions.length || !state.goals.length || !state.subscriptions.length)) && <SetupTrail state={state} navigate={navigate} setSheet={setSheet} />}
       <SectionTitle title="Upcoming events" action="View all" onAction={() => setSheet({ type: "events", title: "Upcoming events" })} />
       <div className="event-list personal-events">
-        {state.subscriptions.slice(0, 2).map((subscription) => <button type="button" key={subscription.id} onClick={() => setSheet({ type: "subscription", id: subscription.id, title: subscription.name })}><span className="service-mini" style={{ background: subscription.color }}>{subscription.glyph}</span><span><strong>{subscription.name}</strong><small>Claimant returns</small></span><em>in {dayLabel(daysUntil(subscription.nextCharge))}</em><b>{formatGold(subscription.amount)}</b></button>)}
+        {state.subscriptions.slice(0, 2).map((subscription) => <button type="button" key={subscription.id} onClick={() => setSheet({ type: "subscription", id: subscription.id, title: subscription.name })}><span className="service-mini"><FinanceIcon title={subscription.name} category="subscription" iconKey={subscription.iconKey} iconMode={subscription.iconMode} /></span><span><strong>{subscription.name}</strong><small>Claimant returns</small></span><em>in {dayLabel(daysUntil(subscription.nextCharge))}</em><b>{formatGold(subscription.amount)}</b></button>)}
         {state.debts.slice(0, 1).map((debt) => <button type="button" key={debt.id} onClick={() => setSheet({ type: "debt", id: debt.id, title: debt.name })}><span className="service-mini orange"><LockKeyhole size={15} /></span><span><strong>{debt.name}</strong><small>Minimum due</small></span><em>in {dayLabel(daysUntil(debt.nextDue))}</em><b>{formatGold(debt.minimum)}</b></button>)}
         {!state.subscriptions.length && !state.debts.length && <div className="event-empty"><CalendarDays size={20} /><span><strong>No arrivals mapped yet</strong><small>Add a claimant or debt only when it helps.</small></span></div>}
       </div>
@@ -904,7 +928,7 @@ function HoardScreen({ state, summary, navigate, setSheet }: { state: DragonStat
           <div className="ledger-tool-row"><button className="primary-button" type="button" onClick={() => setSheet({ type: "add-transaction", title: "Add treasure movement" })}><Plus size={18} /> Add movement</button><button className="ledger-import-button" type="button" onClick={() => navigate("import")}><ScrollText size={18} /><span><strong>Read a statement</strong><small>Paste rows or choose a file</small></span></button></div>
           {filteredTransactions.map((transaction) => (
             <button key={transaction.id} type="button" className="transaction-row" onClick={() => setSheet({ type: "transaction", id: transaction.id, title: transaction.merchant })}>
-              <span className={`transaction-glyph ${transaction.unusual ? "unusual" : ""}`}>{transaction.unusual ? "!" : transaction.merchant.slice(0, 1)}</span>
+              <span className={`transaction-glyph ${transaction.unusual ? "unusual" : ""}`}><FinanceIcon title={transaction.merchant} category={transaction.direction === "income" ? "income" : "purchase"} iconKey={transaction.iconKey} iconMode={transaction.iconMode} />{transaction.unusual && <b className="finance-icon-alert">!</b>}</span>
               <span><strong>{transaction.merchant}</strong><small>{formatDate(transaction.date)} · {transaction.category}{transaction.status === "pending" ? " · Pending" : ""}</small></span>
               <b className={transaction.transfer ? "paired" : transaction.direction}>{transaction.transfer ? "Paired · " : transaction.direction === "income" ? "+" : "−"}{formatGold(transaction.amount)}</b>
             </button>
@@ -1234,14 +1258,14 @@ function TributeScreen({ state, navigate, setSheet, logUse }: { state: DragonSta
       <div className="claimant-list">
         {state.subscriptions.map((subscription) => (
           <button key={subscription.id} type="button" className="claimant-card" onClick={() => setSheet({ type: "subscription", id: subscription.id, title: subscription.name })}>
-            <span className="claimant-logo" style={{ background: subscription.color }}>{subscription.glyph}</span>
+            <span className="claimant-logo"><FinanceIcon title={subscription.name} category="subscription" iconKey={subscription.iconKey} iconMode={subscription.iconMode} /></span>
             <span><strong>{subscription.name}</strong><small>{formatGold(subscription.amount)} / {subscription.cadence.replace("ly", "")}</small>{subscription.lastUsed && <em>Last logged {daysSince(subscription.lastUsed) === 0 ? "today" : `${dayLabel(daysSince(subscription.lastUsed))} ago`}</em>}</span>
             <span className="claimant-arrival">in {dayLabel(daysUntil(subscription.nextCharge))}{subscription.priceChange && <b>↑ +{formatGold(subscription.priceChange)}</b>}</span><ChevronRight size={17} />
           </button>
         ))}
       </div>
       {changed && <section className="tribute-alert"><div><Bell size={20} /><span><strong>One claimant increased tribute.</strong><small>{changed.name} rose by {formatGold(changed.priceChange ?? 0)} this month.</small></span></div><button type="button" onClick={() => setSheet({ type: "subscription", id: changed.id, title: changed.name })}>Review now</button></section>}
-      <section className="quick-log"><SectionTitle title="Quick usage log" /><div>{state.subscriptions.slice(0, 3).map((subscription) => <button key={subscription.id} type="button" onClick={() => logUse(subscription)}><span style={{ background: subscription.color }}>{subscription.glyph}</span><b>{subscription.name}</b><small>Used today</small></button>)}</div></section>
+      <section className="quick-log"><SectionTitle title="Quick usage log" /><div>{state.subscriptions.slice(0, 3).map((subscription) => <button key={subscription.id} type="button" onClick={() => logUse(subscription)}><span><FinanceIcon title={subscription.name} category="subscription" iconKey={subscription.iconKey} iconMode={subscription.iconMode} /></span><b>{subscription.name}</b><small>Used today</small></button>)}</div></section>
     </section>
   );
 }
@@ -1260,7 +1284,7 @@ function InvestmentsScreen({ state, navigate, updateState, setSheet, setToast, r
       {EXPERIMENTAL_MARKET_DATA && <section className="market-refresh-panel"><div><RefreshCw size={21} /><span><strong>Experimental quote refresh</strong><p>Optional end-of-day data refreshes when a saved symbol is stale. Manual values stay in place if the provider is unavailable.</p></span></div><label className="check-label"><input type="checkbox" checked={state.journey.marketAutoRefresh} onChange={(event) => updateState((previous) => ({ ...previous, journey: { ...previous.journey, marketAutoRefresh: event.target.checked } }))} /> Refresh at most every</label><select aria-label="Market refresh interval" value={state.journey.marketRefreshHours} onChange={(event) => updateState((previous) => ({ ...previous, journey: { ...previous.journey, marketRefreshHours: Number(event.target.value) } }))}><option value="24">24 hours</option><option value="48">2 days</option><option value="168">7 days</option><option value="336">14 days</option></select></section>}
       <div className="investment-list">{state.investments.map((position) => {
         const value = position.units * (position.marketPrice ?? position.unitPrice);
-        return <article key={position.id} className="investment-row"><button type="button" onClick={() => setSheet({ type: "investment", id: position.id, title: position.name })}><span className="investment-gem"><Gem size={22} /></span><span><strong>{position.name}{EXPERIMENTAL_MARKET_DATA && position.ticker ? ` · ${position.ticker}` : ""}</strong><small>Manual value · updated {formatDate(position.updatedAt)}</small>{position.dividendYield ? <em>{position.dividendYield.toFixed(2)}% entered dividend yield</em> : null}</span><b>{formatGold(value)}</b><ChevronRight size={17} /></button>{EXPERIMENTAL_MARKET_DATA && position.ticker && <button className="position-refresh" type="button" onClick={() => refreshMarketQuote(position.id)} aria-label={`Refresh ${position.ticker}`}><RefreshCw size={17} /></button>}</article>;
+        return <article key={position.id} className="investment-row"><button type="button" onClick={() => setSheet({ type: "investment", id: position.id, title: position.name })}><span className="investment-gem"><FinanceIcon title={position.name} category="investment" iconKey={position.iconKey} iconMode={position.iconMode} /></span><span><strong>{position.name}{EXPERIMENTAL_MARKET_DATA && position.ticker ? ` · ${position.ticker}` : ""}</strong><small>Manual value · updated {formatDate(position.updatedAt)}</small>{position.dividendYield ? <em>{position.dividendYield.toFixed(2)}% entered dividend yield</em> : null}</span><b>{formatGold(value)}</b><ChevronRight size={17} /></button>{EXPERIMENTAL_MARKET_DATA && position.ticker && <button className="position-refresh" type="button" onClick={() => refreshMarketQuote(position.id)} aria-label={`Refresh ${position.ticker}`}><RefreshCw size={17} /></button>}</article>;
       })}</div>
       {!state.investments.length && <div className="empty-state"><Sprout size={38} /><strong>No sleeping treasure is mapped.</strong><p>Manual tracking is optional. Dragon Mode never places a trade.</p></div>}
       <button className="primary-button full" type="button" onClick={() => setSheet({ type: "add-investment", title: "Add a sleeping treasure" })}><Plus size={18} /> Add investment position</button>
@@ -1709,6 +1733,7 @@ function WorthTheGold({ state, updateState, setToast }: { state: DragonState; up
 
 function SubscriptionDetail({ subscription, state, updateState, logUse, setSheet, setToast }: { subscription: Subscription; state: DragonState; updateState: (updater: (state: DragonState) => DragonState) => void; logUse: (subscription: Subscription, quantity?: number) => void; setSheet: (sheet: Sheet) => void; setToast: (toast: string) => void }) {
   const [quantity, setQuantity] = useState(1);
+  const [name, setName] = useState(subscription.name);
   const [amount, setAmount] = useState(subscription.amount.toString());
   const [cadence, setCadence] = useState(subscription.cadence);
   const [nextCharge, setNextCharge] = useState(subscription.nextCharge.slice(0, 10));
@@ -1719,12 +1744,15 @@ function SubscriptionDetail({ subscription, state, updateState, logUse, setSheet
   const [usageQuestDays, setUsageQuestDays] = useState(subscription.usageQuestDays);
   const [questEnabled, setQuestEnabled] = useState(subscription.questEnabled);
   const [accountId, setAccountId] = useState(subscription.accountId);
+  const [iconKey, setIconKey] = useState(subscription.iconKey);
+  const [iconMode, setIconMode] = useState<FinanceIconMode>(subscription.iconMode ?? "automatic");
   const monthly = monthlySubscriptionAmount({ ...subscription, amount: Number(amount) || 0, cadence });
   const billingUses = currentBillingUsage(subscription);
   const save = () => {
     const numericAmount = Number(amount) || subscription.amount;
     updateState((previous) => ({ ...previous, subscriptions: previous.subscriptions.map((item) => item.id === subscription.id ? {
       ...item,
+      name: name.trim() || item.name,
       amount: numericAmount,
       cadence,
       nextCharge: new Date(`${nextCharge}T12:00:00`).toISOString(),
@@ -1735,6 +1763,8 @@ function SubscriptionDetail({ subscription, state, updateState, logUse, setSheet
       usageQuestDays,
       questEnabled,
       accountId,
+      iconKey: iconMode === "manual" ? iconKey : undefined,
+      iconMode,
       priceChange: numericAmount !== item.amount ? numericAmount - item.amount : undefined,
       priceHistory: numericAmount !== item.amount ? [...item.priceHistory, { amount: numericAmount, changedAt: new Date().toISOString() }] : item.priceHistory,
     } : item) }));
@@ -1744,14 +1774,39 @@ function SubscriptionDetail({ subscription, state, updateState, logUse, setSheet
     const at = new Date(new Date(`${nextCharge}T09:00:00`).getTime() - reminderDays * 86_400_000);
     if (at.getTime() <= Date.now()) at.setTime(Date.now() + 60_000);
     try {
-      const result = await scheduleClaimantReminder({ id: subscription.id, name: subscription.name, amount: Number(amount) || subscription.amount, at });
+      const result = await scheduleClaimantReminder({ id: subscription.id, name: name.trim() || subscription.name, amount: Number(amount) || subscription.amount, at });
       updateState((previous) => ({ ...previous, subscriptions: previous.subscriptions.map((item) => item.id === subscription.id ? { ...item, reminderEnabled: result.scheduled } : item), profile: { ...previous.profile, notificationsEnabled: result.scheduled || previous.profile.notificationsEnabled } }));
       setToast(result.reason);
     } catch {
       setToast("This reminder could not be scheduled");
     }
   };
-  return <div className="subscription-detail"><div className="detail-hero"><span className="claimant-logo" style={{ background: subscription.color }}>{subscription.glyph}</span><div><strong>{formatGold(Number(amount) || 0)}</strong><small>Renews {formatDate(`${nextCharge}T12:00:00`)}</small></div></div>{subscription.priceChange && <p className="warning-copy">Price change ready for review: {subscription.priceChange > 0 ? "+" : "−"}{formatGold(Math.abs(subscription.priceChange))}. Saving acknowledges this review.</p>}<div className="detail-grid"><div><span>Annual cost</span><strong>{formatGold(monthly * 12)}</strong></div><div><span>This billing period</span><strong>{billingUses} use{billingUses === 1 ? "" : "s"}</strong></div><div><span>Cost per period use</span><strong>{formatGold(subscriptionCostPerUse(state, subscription.id))}</strong></div><div><span>Last logged</span><strong>{subscription.lastUsed ? `${daysSince(subscription.lastUsed)}d ago` : "Never"}</strong></div></div><label className="quantity-field">Quantity<input type="number" min="1" max="20" value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /></label><button type="button" className="primary-button full" onClick={() => logUse(subscription, quantity)}><Check size={18} /> Used today</button><div className="edit-grid"><label>Price<input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label>Cadence<select value={cadence} onChange={(event) => setCadence(event.target.value as typeof cadence)}><option value="weekly">Weekly</option><option value="fortnightly">Fortnightly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annual">Annual</option></select></label><label>Next charge<input type="date" value={nextCharge} onChange={(event) => setNextCharge(event.target.value)} /></label><label>Payment source<select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{state.accounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></label><label>Usage tracking<select value={trackingMode} onChange={(event) => setTrackingMode(event.target.value as typeof trackingMode)}><option value="every-use">Every use</option><option value="weekly">Weekly check</option><option value="monthly">Monthly review</option><option value="off">Do not track</option></select></label><label>Value rating<select value={valueRating} onChange={(event) => setValueRating(event.target.value as typeof valueRating)}><option>Not rated</option><option>Absolutely</option><option>Mostly</option><option>Neutral</option><option>Probably not</option><option>Regret it</option></select></label><label>Usage quest after <select value={usageQuestDays} onChange={(event) => setUsageQuestDays(Number(event.target.value))}><option value="14">14 days</option><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option></select></label><label>Reminder before <select value={reminderDays} onChange={(event) => setReminderDays(Number(event.target.value))}><option value="1">1 day</option><option value="2">2 days</option><option value="3">3 days</option><option value="5">5 days</option><option value="7">7 days</option></select></label><label className="check-label"><input type="checkbox" checked={questEnabled} onChange={(event) => setQuestEnabled(event.target.checked)} /> Offer non-use quests</label></div><label>Cancellation notes<textarea value={cancellationNotes} onChange={(event) => setCancellationNotes(event.target.value)} placeholder="Where to cancel, notice period, or export steps" /></label><div className="price-history"><h3>Price history</h3>{subscription.priceHistory.map((entry) => <p key={`${entry.changedAt}-${entry.amount}`}><span>{formatDate(entry.changedAt)}</span><b>{formatGold(entry.amount)}</b></p>)}</div><button type="button" className="primary-button full" onClick={save}><Save size={17} /> Save claimant</button><button type="button" className="secondary-button full" onClick={schedule}><Bell size={17} /> Schedule friendly reminder</button><button type="button" className="danger-button full" onClick={() => { cancelClaimantReminder(subscription.id).catch(() => undefined); updateState((previous) => ({ ...previous, subscriptions: previous.subscriptions.filter((item) => item.id !== subscription.id) })); setSheet(null); setToast("Claimant and reminder removed"); }}><Trash2 size={17} /> Remove claimant</button><p className="fine-print">Cost per use covers the current billing period and only usage you logged.</p></div>;
+  return <div className="subscription-detail">
+    <div className="detail-hero"><span className="claimant-logo"><FinanceIcon title={name} category="subscription" iconKey={iconKey} iconMode={iconMode} /></span><div><strong>{formatGold(Number(amount) || 0)}</strong><small>Renews {formatDate(`${nextCharge}T12:00:00`)}</small></div></div>
+    {subscription.priceChange && <p className="warning-copy">Price change ready for review: {subscription.priceChange > 0 ? "+" : "−"}{formatGold(Math.abs(subscription.priceChange))}. Saving acknowledges this review.</p>}
+    <div className="detail-grid"><div><span>Annual cost</span><strong>{formatGold(monthly * 12)}</strong></div><div><span>This billing period</span><strong>{billingUses} use{billingUses === 1 ? "" : "s"}</strong></div><div><span>Cost per period use</span><strong>{formatGold(subscriptionCostPerUse(state, subscription.id))}</strong></div><div><span>Last logged</span><strong>{subscription.lastUsed ? `${daysSince(subscription.lastUsed)}d ago` : "Never"}</strong></div></div>
+    <label className="quantity-field">Quantity<input type="number" min="1" max="20" value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /></label>
+    <button type="button" className="primary-button full" onClick={() => logUse(subscription, quantity)}><Check size={18} /> Used today</button>
+    <label>Claimant name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
+    <FinanceIconPicker title={name} category="subscription" iconKey={iconKey} iconMode={iconMode} onChange={(key, mode) => { setIconKey(key); setIconMode(mode); }} />
+    <div className="edit-grid">
+      <label>Price<input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
+      <label>Cadence<select value={cadence} onChange={(event) => setCadence(event.target.value as typeof cadence)}><option value="weekly">Weekly</option><option value="fortnightly">Fortnightly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annual">Annual</option></select></label>
+      <label>Next charge<input type="date" value={nextCharge} onChange={(event) => setNextCharge(event.target.value)} /></label>
+      <label>Payment source<select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{state.accounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></label>
+      <label>Usage tracking<select value={trackingMode} onChange={(event) => setTrackingMode(event.target.value as typeof trackingMode)}><option value="every-use">Every use</option><option value="weekly">Weekly check</option><option value="monthly">Monthly review</option><option value="off">Do not track</option></select></label>
+      <label>Value rating<select value={valueRating} onChange={(event) => setValueRating(event.target.value as typeof valueRating)}><option>Not rated</option><option>Absolutely</option><option>Mostly</option><option>Neutral</option><option>Probably not</option><option>Regret it</option></select></label>
+      <label>Usage quest after <select value={usageQuestDays} onChange={(event) => setUsageQuestDays(Number(event.target.value))}><option value="14">14 days</option><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option></select></label>
+      <label>Reminder before <select value={reminderDays} onChange={(event) => setReminderDays(Number(event.target.value))}><option value="1">1 day</option><option value="2">2 days</option><option value="3">3 days</option><option value="5">5 days</option><option value="7">7 days</option></select></label>
+      <label className="check-label"><input type="checkbox" checked={questEnabled} onChange={(event) => setQuestEnabled(event.target.checked)} /> Offer non-use quests</label>
+    </div>
+    <label>Cancellation notes<textarea value={cancellationNotes} onChange={(event) => setCancellationNotes(event.target.value)} placeholder="Where to cancel, notice period, or export steps" /></label>
+    <div className="price-history"><h3>Price history</h3>{subscription.priceHistory.map((entry) => <p key={`${entry.changedAt}-${entry.amount}`}><span>{formatDate(entry.changedAt)}</span><b>{formatGold(entry.amount)}</b></p>)}</div>
+    <button type="button" className="primary-button full" onClick={save}><Save size={17} /> Save claimant</button>
+    <button type="button" className="secondary-button full" onClick={schedule}><Bell size={17} /> Schedule friendly reminder</button>
+    <button type="button" className="danger-button full" onClick={() => { cancelClaimantReminder(subscription.id).catch(() => undefined); updateState((previous) => ({ ...previous, subscriptions: previous.subscriptions.filter((item) => item.id !== subscription.id) })); setSheet(null); setToast("Claimant and reminder removed"); }}><Trash2 size={17} /> Remove claimant</button>
+    <p className="fine-print">Cost per use covers the current billing period and only usage you logged.</p>
+  </div>;
 }
 
 function ChamberDetail({ chamber, state, updateState, setToast }: { chamber: DragonState["chambers"][number]; state: DragonState; updateState: (updater: (state: DragonState) => DragonState) => void; setToast: (toast: string) => void }) {
@@ -1807,9 +1862,11 @@ function TransactionDetail({ transaction, state, updateState, setToast, setSheet
   const [duplicate, setDuplicate] = useState(Boolean(transaction.duplicate));
   const [recurringSeriesId, setRecurringSeriesId] = useState(transaction.recurringSeriesId ?? "");
   const [worthRating, setWorthRating] = useState<WorthRating | "">(transaction.worthRating ?? "");
+  const [iconKey, setIconKey] = useState(transaction.iconKey);
+  const [iconMode, setIconMode] = useState<FinanceIconMode>(transaction.iconMode ?? "automatic");
   const reviewed = Boolean(transaction.reviewedAt);
   const save = (markReviewed = false) => {
-    const nextTransaction: Transaction = { ...transaction, merchant, amount: Number(amount) || 0, date: new Date(`${date}T12:00:00`).toISOString(), direction, category, accountId, note, status, unusual, duplicate, reviewedAt: markReviewed ? new Date().toISOString() : transaction.reviewedAt, recurringSeriesId: recurringSeriesId || undefined, worthRating: worthRating || undefined };
+    const nextTransaction: Transaction = { ...transaction, merchant, amount: Number(amount) || 0, date: new Date(`${date}T12:00:00`).toISOString(), direction, category, accountId, note, status, unusual, duplicate, reviewedAt: markReviewed ? new Date().toISOString() : transaction.reviewedAt, recurringSeriesId: recurringSeriesId || undefined, worthRating: worthRating || undefined, iconKey: iconMode === "manual" ? iconKey : undefined, iconMode };
     updateState((previous) => {
       const reconciled = replaceTransaction(previous, transaction, nextTransaction);
       return {
@@ -1820,7 +1877,31 @@ function TransactionDetail({ transaction, state, updateState, setToast, setSheet
     });
     setToast(markReviewed ? "Movement reviewed · +10 XP" : "Movement updated");
   };
-  return <div className="detail-stack"><strong className={transaction.transfer ? "paired" : direction}>{transaction.transfer ? "Paired · " : direction === "income" ? "+" : "−"}{formatGold(Number(amount) || 0)}</strong>{transaction.transfer && <p className="estimate-note">This imported row is paired with its matching row so totals are not counted twice. DragonMode only records that relationship; it cannot move, send, or schedule money.</p>}{(transaction.unusual || transaction.duplicate) && !reviewed && <p className="warning-copy">This movement was flagged for a calm review. Only you can confirm it.</p>}<div className="edit-grid"><label>Merchant or source<input value={merchant} onChange={(event) => setMerchant(event.target.value)} /></label><label>Amount<input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label>Date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>{!transaction.transfer && <label>Direction<select value={direction} onChange={(event) => setDirection(event.target.value as typeof direction)}><option value="expense">Expense</option><option value="income">Income</option></select></label>}<label>Chamber<select value={category} onChange={(event) => setCategory(event.target.value)}><option>Uncategorised</option><option>Income</option>{state.chambers.map((item) => <option key={item.id}>{item.name}</option>)}</select></label><label>Mapped balance<select value={accountId} disabled={Boolean(transaction.transfer)} onChange={(event) => setAccountId(event.target.value)}>{state.accounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>Status<select value={status} onChange={(event) => setStatus(event.target.value as typeof status)}><option value="cleared">Cleared</option><option value="pending">Pending</option></select></label><label>Recurring claimant<select value={recurringSeriesId} onChange={(event) => setRecurringSeriesId(event.target.value)}><option value="">Not recurring</option>{state.subscriptions.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>Worth the Gold?<select value={worthRating} onChange={(event) => setWorthRating(event.target.value as WorthRating | "")}><option value="">Not rated</option><option>Absolutely</option><option>Mostly</option><option>Neutral</option><option>Probably not</option><option>Regret it</option></select></label><label className="check-label"><input type="checkbox" checked={unusual} onChange={(event) => setUnusual(event.target.checked)} /> Mark unusual</label><label className="check-label"><input type="checkbox" checked={duplicate} onChange={(event) => setDuplicate(event.target.checked)} /> Possible duplicate</label></div><label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional context" /></label>{!transaction.transfer && <p className="estimate-note">Saving or deleting this movement updates its balance and category.</p>}<button type="button" className="primary-button full" onClick={() => save(false)}><Save size={17} /> Save changes</button>{!reviewed && (transaction.unusual || transaction.duplicate) && <button type="button" className="secondary-button full" onClick={() => save(true)}><ShieldCheck size={17} /> Mark reviewed</button>}<button type="button" className="danger-button full" onClick={() => { updateState((previous) => deleteTransaction(previous, transaction)); setSheet(null); setToast("Movement removed and balances updated"); }}><Trash2 size={17} /> Delete movement</button></div>;
+  const iconCategory: FinanceIconCategory = direction === "income" ? "income" : "purchase";
+  return <div className="detail-stack">
+    <strong className={transaction.transfer ? "paired" : direction}>{transaction.transfer ? "Paired · " : direction === "income" ? "+" : "−"}{formatGold(Number(amount) || 0)}</strong>
+    {transaction.transfer && <p className="estimate-note">This imported row is paired with its matching row so totals are not counted twice. DragonMode only records that relationship; it cannot move, send, or schedule money.</p>}
+    {(transaction.unusual || transaction.duplicate) && !reviewed && <p className="warning-copy">This movement was flagged for a calm review. Only you can confirm it.</p>}
+    <div className="edit-grid">
+      <label>Merchant or source<input value={merchant} onChange={(event) => setMerchant(event.target.value)} /></label>
+      <label>Amount<input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
+      <label>Date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
+      {!transaction.transfer && <label>Direction<select value={direction} onChange={(event) => { setDirection(event.target.value as typeof direction); setIconKey(undefined); setIconMode("automatic"); }}><option value="expense">Expense</option><option value="income">Income</option></select></label>}
+      <label>Chamber<select value={category} onChange={(event) => setCategory(event.target.value)}><option>Uncategorised</option><option>Income</option>{state.chambers.map((item) => <option key={item.id}>{item.name}</option>)}</select></label>
+      <label>Mapped balance<select value={accountId} disabled={Boolean(transaction.transfer)} onChange={(event) => setAccountId(event.target.value)}>{state.accounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
+      <label>Status<select value={status} onChange={(event) => setStatus(event.target.value as typeof status)}><option value="cleared">Cleared</option><option value="pending">Pending</option></select></label>
+      <label>Recurring claimant<select value={recurringSeriesId} onChange={(event) => setRecurringSeriesId(event.target.value)}><option value="">Not recurring</option>{state.subscriptions.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
+      <label>Worth the Gold?<select value={worthRating} onChange={(event) => setWorthRating(event.target.value as WorthRating | "")}><option value="">Not rated</option><option>Absolutely</option><option>Mostly</option><option>Neutral</option><option>Probably not</option><option>Regret it</option></select></label>
+      <label className="check-label"><input type="checkbox" checked={unusual} onChange={(event) => setUnusual(event.target.checked)} /> Mark unusual</label>
+      <label className="check-label"><input type="checkbox" checked={duplicate} onChange={(event) => setDuplicate(event.target.checked)} /> Possible duplicate</label>
+    </div>
+    <FinanceIconPicker title={merchant} category={iconCategory} iconKey={iconKey} iconMode={iconMode} onChange={(key, mode) => { setIconKey(key); setIconMode(mode); }} />
+    <label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional context" /></label>
+    {!transaction.transfer && <p className="estimate-note">Saving or deleting this movement updates its balance and category.</p>}
+    <button type="button" className="primary-button full" onClick={() => save(false)}><Save size={17} /> Save changes</button>
+    {!reviewed && (transaction.unusual || transaction.duplicate) && <button type="button" className="secondary-button full" onClick={() => save(true)}><ShieldCheck size={17} /> Mark reviewed</button>}
+    <button type="button" className="danger-button full" onClick={() => { updateState((previous) => deleteTransaction(previous, transaction)); setSheet(null); setToast("Movement removed and balances updated"); }}><Trash2 size={17} /> Delete movement</button>
+  </div>;
 }
 
 function AccountDetail({ account, state, updateState, setSheet, setToast }: { account: DragonState["accounts"][number]; state: DragonState; updateState: (updater: (state: DragonState) => DragonState) => void; setSheet: (sheet: Sheet) => void; setToast: (toast: string) => void }) {
@@ -1889,10 +1970,12 @@ function InvestmentDetail({ investment, state, updateState, setSheet, setToast }
   const [dividendFrequency, setDividendFrequency] = useState(investment.dividendFrequency ?? "quarterly");
   const [nextDividendDate, setNextDividendDate] = useState(investment.nextDividendDate?.slice(0, 10) ?? "");
   const [note, setNote] = useState(investment.note);
+  const [iconKey, setIconKey] = useState(investment.iconKey);
+  const [iconMode, setIconMode] = useState<FinanceIconMode>(investment.iconMode ?? "automatic");
   const value = (Number(units) || 0) * (Number(unitPrice) || 0);
   const savePosition = () => {
     updateState((previous) => {
-      const investments = previous.investments.map((item) => item.id === investment.id ? { ...item, name, ticker: EXPERIMENTAL_MARKET_DATA ? ticker.trim() || undefined : item.ticker, type, units: Number(units) || 0, unitPrice: Number(unitPrice) || 0, marketPrice: Number(unitPrice) || 0, quoteSource: "manual" as const, priceConfirmedAt: new Date().toISOString(), contributions: Number(contributions) || 0, costBasis: Number(contributions) || 0, feeRate: Number(feeRate) || 0, riskLabel, annualReturnAssumption: Number(annualReturnAssumption) || 0, dividendYield: Number(dividendYield) || undefined, dividendFrequency, nextDividendDate: nextDividendDate ? new Date(`${nextDividendDate}T12:00:00`).toISOString() : undefined, accountId, note, updatedAt: new Date().toISOString() } : item);
+      const investments = previous.investments.map((item) => item.id === investment.id ? { ...item, name, ticker: EXPERIMENTAL_MARKET_DATA ? ticker.trim() || undefined : item.ticker, type, units: Number(units) || 0, unitPrice: Number(unitPrice) || 0, marketPrice: Number(unitPrice) || 0, quoteSource: "manual" as const, priceConfirmedAt: new Date().toISOString(), contributions: Number(contributions) || 0, costBasis: Number(contributions) || 0, feeRate: Number(feeRate) || 0, riskLabel, annualReturnAssumption: Number(annualReturnAssumption) || 0, dividendYield: Number(dividendYield) || undefined, dividendFrequency, nextDividendDate: nextDividendDate ? new Date(`${nextDividendDate}T12:00:00`).toISOString() : undefined, accountId, note, iconKey: iconMode === "manual" ? iconKey : undefined, iconMode, updatedAt: new Date().toISOString() } : item);
       return syncInvestmentAccounts(previous, investments);
     });
     setToast("Investment and balance updated");
@@ -1902,7 +1985,30 @@ function InvestmentDetail({ investment, state, updateState, setSheet, setToast }
     setSheet(null);
     setToast("Investment removed and balance updated");
   };
-  return <div className="detail-stack"><strong>{formatGold(value)}</strong><p>You enter these values yourself. Check real holdings and payments with your provider; DragonMode never places trades.</p><div className="edit-grid"><label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label>{EXPERIMENTAL_MARKET_DATA && <label>Market symbol<input value={ticker} onChange={(event) => setTicker(event.target.value.toUpperCase())} placeholder="e.g. VGS.AX" autoCapitalize="characters" /></label>}<label>Type<select value={type} onChange={(event) => setType(event.target.value as InvestmentPosition["type"])}><option value="fund">Fund</option><option value="shares">Shares</option><option value="retirement">Retirement</option><option value="cash">Cash</option><option value="other">Other</option></select></label><label>Units<input inputMode="decimal" value={units} onChange={(event) => setUnits(event.target.value)} /></label><label>Unit price<input inputMode="decimal" value={unitPrice} onChange={(event) => setUnitPrice(event.target.value)} /></label><label>Money contributed<input inputMode="decimal" value={contributions} onChange={(event) => setContributions(event.target.value)} /></label><label>Yearly fee %<input inputMode="decimal" value={feeRate} onChange={(event) => setFeeRate(event.target.value)} /></label><label>How much it may move<select value={riskLabel} onChange={(event) => setRiskLabel(event.target.value as typeof riskLabel)}><option value="unknown">Not sure</option><option value="lower">Less</option><option value="medium">Medium</option><option value="higher">More</option></select></label><label>Estimated yearly growth %<input inputMode="decimal" value={annualReturnAssumption} onChange={(event) => setAnnualReturnAssumption(event.target.value)} /></label><label>Estimated dividend yield %<input inputMode="decimal" value={dividendYield} onChange={(event) => setDividendYield(event.target.value)} /></label><label>How often dividends arrive<select value={dividendFrequency} onChange={(event) => setDividendFrequency(event.target.value as typeof dividendFrequency)}><option value="monthly">Monthly</option><option value="quarterly">Every three months</option><option value="half-yearly">Twice a year</option><option value="annual">Yearly</option><option value="irregular">It varies</option></select></label><label>Next known dividend date<input type="date" value={nextDividendDate} onChange={(event) => setNextDividendDate(event.target.value)} /></label><label>Balance to update<select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{state.accounts.filter((account) => account.type === "investment" || account.type === "asset").map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></label></div><label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label><p className="estimate-note">Saving updates the selected balance. The fee, movement, growth, and dividend fields are estimates you can change; they are not a recommendation.</p><button className="primary-button full" type="button" onClick={savePosition}><Save size={17} /> Save investment</button><button className="danger-button full" type="button" onClick={removePosition}><Trash2 size={17} /> Remove investment</button></div>;
+  return <div className="detail-stack">
+    <strong>{formatGold(value)}</strong>
+    <p>You enter these values yourself. Check real holdings and payments with your provider; DragonMode never places trades.</p>
+    <div className="edit-grid">
+      <label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
+      {EXPERIMENTAL_MARKET_DATA && <label>Market symbol<input value={ticker} onChange={(event) => setTicker(event.target.value.toUpperCase())} placeholder="e.g. VGS.AX" autoCapitalize="characters" /></label>}
+      <label>Type<select value={type} onChange={(event) => setType(event.target.value as InvestmentPosition["type"])}><option value="fund">Fund</option><option value="shares">Shares</option><option value="retirement">Retirement</option><option value="cash">Cash</option><option value="other">Other</option></select></label>
+      <label>Units<input inputMode="decimal" value={units} onChange={(event) => setUnits(event.target.value)} /></label>
+      <label>Unit price<input inputMode="decimal" value={unitPrice} onChange={(event) => setUnitPrice(event.target.value)} /></label>
+      <label>Money contributed<input inputMode="decimal" value={contributions} onChange={(event) => setContributions(event.target.value)} /></label>
+      <label>Yearly fee %<input inputMode="decimal" value={feeRate} onChange={(event) => setFeeRate(event.target.value)} /></label>
+      <label>How much it may move<select value={riskLabel} onChange={(event) => setRiskLabel(event.target.value as typeof riskLabel)}><option value="unknown">Not sure</option><option value="lower">Less</option><option value="medium">Medium</option><option value="higher">More</option></select></label>
+      <label>Estimated yearly growth %<input inputMode="decimal" value={annualReturnAssumption} onChange={(event) => setAnnualReturnAssumption(event.target.value)} /></label>
+      <label>Estimated dividend yield %<input inputMode="decimal" value={dividendYield} onChange={(event) => setDividendYield(event.target.value)} /></label>
+      <label>How often dividends arrive<select value={dividendFrequency} onChange={(event) => setDividendFrequency(event.target.value as typeof dividendFrequency)}><option value="monthly">Monthly</option><option value="quarterly">Every three months</option><option value="half-yearly">Twice a year</option><option value="annual">Yearly</option><option value="irregular">It varies</option></select></label>
+      <label>Next known dividend date<input type="date" value={nextDividendDate} onChange={(event) => setNextDividendDate(event.target.value)} /></label>
+      <label>Balance to update<select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{state.accounts.filter((account) => account.type === "investment" || account.type === "asset").map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></label>
+    </div>
+    <FinanceIconPicker title={name} category="investment" iconKey={iconKey} iconMode={iconMode} onChange={(key, mode) => { setIconKey(key); setIconMode(mode); }} />
+    <label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label>
+    <p className="estimate-note">Saving updates the selected balance. The fee, movement, growth, and dividend fields are estimates you can change; they are not a recommendation.</p>
+    <button className="primary-button full" type="button" onClick={savePosition}><Save size={17} /> Save investment</button>
+    <button className="danger-button full" type="button" onClick={removePosition}><Trash2 size={17} /> Remove investment</button>
+  </div>;
 }
 
 function GoalDetail({ goal, state, updateState, setSheet, setToast }: { goal: Goal; state: DragonState; updateState: (updater: (state: DragonState) => DragonState) => void; setSheet: (sheet: Sheet) => void; setToast: (toast: string) => void }) {
@@ -1970,7 +2076,27 @@ function AddInvestment({ state, updateState, setSheet, setToast }: { state: Drag
   const [dividendFrequency, setDividendFrequency] = useState<NonNullable<InvestmentPosition["dividendFrequency"]>>("quarterly");
   const [accountId, setAccountId] = useState(eligibleAccounts[0]?.id ?? "");
   const [note, setNote] = useState("");
-  return <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (!name || !Number(units) || !Number(unitPrice)) return; updateState((previous) => { const position: InvestmentPosition = { id: crypto.randomUUID(), accountId, name, ticker: EXPERIMENTAL_MARKET_DATA ? ticker.trim().toUpperCase() || undefined : undefined, type, units: Number(units), unitPrice: Number(unitPrice), marketPrice: Number(unitPrice), quoteSource: "manual", contributions: Number(contributions) || Number(units) * Number(unitPrice), annualReturnAssumption: Number(annualReturnAssumption) || 0, dividendYield: Number(dividendYield) || undefined, dividendFrequency, note, updatedAt: new Date().toISOString() }; return syncInvestmentAccounts(previous, [...previous.investments, position]); }); setSheet(null); setToast("Investment and balance added"); }}><label>Investment name<input required value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Broad-market fund" /></label><div className="edit-grid">{EXPERIMENTAL_MARKET_DATA && <label>Market symbol<input value={ticker} onChange={(event) => setTicker(event.target.value.toUpperCase())} placeholder="Optional · e.g. VGS.AX" autoCapitalize="characters" /></label>}<label>Type<select value={type} onChange={(event) => setType(event.target.value as InvestmentPosition["type"])}><option value="fund">Fund</option><option value="shares">Shares</option><option value="retirement">Retirement</option><option value="cash">Cash</option><option value="other">Other</option></select></label><label>Balance to update<select required value={accountId} onChange={(event) => setAccountId(event.target.value)}>{eligibleAccounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></label><label>Units<input required inputMode="decimal" value={units} onChange={(event) => setUnits(event.target.value)} /></label><label>Unit price<input required inputMode="decimal" value={unitPrice} onChange={(event) => setUnitPrice(event.target.value)} /></label><label>Money contributed<input inputMode="decimal" value={contributions} onChange={(event) => setContributions(event.target.value)} /></label><label>Estimated yearly growth %<input inputMode="decimal" value={annualReturnAssumption} onChange={(event) => setAnnualReturnAssumption(event.target.value)} /></label><label>Estimated dividend yield %<input inputMode="decimal" value={dividendYield} onChange={(event) => setDividendYield(event.target.value)} /></label><label>How often dividends arrive<select value={dividendFrequency} onChange={(event) => setDividendFrequency(event.target.value as typeof dividendFrequency)}><option value="monthly">Monthly</option><option value="quarterly">Every three months</option><option value="half-yearly">Twice a year</option><option value="annual">Yearly</option><option value="irregular">It varies</option></select></label></div><label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional context" /></label><p className="estimate-note">Saving updates the selected balance. The growth and dividend figures are estimates used only for Idle Vault.</p>{!eligibleAccounts.length && <p className="warning-copy">Map an investment or asset balance first.</p>}<button disabled={!eligibleAccounts.length} className="primary-button full" type="submit"><Plus size={18} /> Add investment</button></form>;
+  const [iconKey, setIconKey] = useState<string>();
+  const [iconMode, setIconMode] = useState<FinanceIconMode>("automatic");
+  return <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (!name || !Number(units) || !Number(unitPrice)) return; updateState((previous) => { const position: InvestmentPosition = { id: crypto.randomUUID(), accountId, name, ticker: EXPERIMENTAL_MARKET_DATA ? ticker.trim().toUpperCase() || undefined : undefined, type, units: Number(units), unitPrice: Number(unitPrice), marketPrice: Number(unitPrice), quoteSource: "manual", contributions: Number(contributions) || Number(units) * Number(unitPrice), annualReturnAssumption: Number(annualReturnAssumption) || 0, dividendYield: Number(dividendYield) || undefined, dividendFrequency, note, iconKey: iconMode === "manual" ? iconKey : undefined, iconMode, updatedAt: new Date().toISOString() }; return syncInvestmentAccounts(previous, [...previous.investments, position]); }); setSheet(null); setToast("Investment and balance added"); }}>
+    <label>Investment name<input required value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Broad-market fund" /></label>
+    <FinanceIconPicker title={name} category="investment" iconKey={iconKey} iconMode={iconMode} onChange={(key, mode) => { setIconKey(key); setIconMode(mode); }} />
+    <div className="edit-grid">
+      {EXPERIMENTAL_MARKET_DATA && <label>Market symbol<input value={ticker} onChange={(event) => setTicker(event.target.value.toUpperCase())} placeholder="Optional · e.g. VGS.AX" autoCapitalize="characters" /></label>}
+      <label>Type<select value={type} onChange={(event) => setType(event.target.value as InvestmentPosition["type"])}><option value="fund">Fund</option><option value="shares">Shares</option><option value="retirement">Retirement</option><option value="cash">Cash</option><option value="other">Other</option></select></label>
+      <label>Balance to update<select required value={accountId} onChange={(event) => setAccountId(event.target.value)}>{eligibleAccounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></label>
+      <label>Units<input required inputMode="decimal" value={units} onChange={(event) => setUnits(event.target.value)} /></label>
+      <label>Unit price<input required inputMode="decimal" value={unitPrice} onChange={(event) => setUnitPrice(event.target.value)} /></label>
+      <label>Money contributed<input inputMode="decimal" value={contributions} onChange={(event) => setContributions(event.target.value)} /></label>
+      <label>Estimated yearly growth %<input inputMode="decimal" value={annualReturnAssumption} onChange={(event) => setAnnualReturnAssumption(event.target.value)} /></label>
+      <label>Estimated dividend yield %<input inputMode="decimal" value={dividendYield} onChange={(event) => setDividendYield(event.target.value)} /></label>
+      <label>How often dividends arrive<select value={dividendFrequency} onChange={(event) => setDividendFrequency(event.target.value as typeof dividendFrequency)}><option value="monthly">Monthly</option><option value="quarterly">Every three months</option><option value="half-yearly">Twice a year</option><option value="annual">Yearly</option><option value="irregular">It varies</option></select></label>
+    </div>
+    <label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional context" /></label>
+    <p className="estimate-note">Saving updates the selected balance. The growth and dividend figures are estimates used only for Idle Vault.</p>
+    {!eligibleAccounts.length && <p className="warning-copy">Map an investment or asset balance first.</p>}
+    <button disabled={!eligibleAccounts.length} className="primary-button full" type="submit"><Plus size={18} /> Add investment</button>
+  </form>;
 }
 
 function AddTransaction({ state, preset, updateState, setSheet, setToast }: { state: DragonState; preset?: Partial<Transaction>; updateState: (updater: (state: DragonState) => DragonState) => void; setSheet: (sheet: Sheet) => void; setToast: (toast: string) => void }) {
@@ -1984,15 +2110,34 @@ function AddTransaction({ state, preset, updateState, setSheet, setToast }: { st
   const [status, setStatus] = useState<"cleared" | "pending">(preset?.status ?? "cleared");
   const [recurringSeriesId, setRecurringSeriesId] = useState("");
   const [unusual, setUnusual] = useState(false);
+  const [iconKey, setIconKey] = useState(preset?.iconKey);
+  const [iconMode, setIconMode] = useState<FinanceIconMode>(preset?.iconMode ?? "automatic");
   const submit = () => {
     const numericAmount = Number(amount);
     if (!merchant || !numericAmount || !accountId) return;
-    const transaction: Transaction = { id: crypto.randomUUID(), accountId, date: new Date(`${date}T12:00:00`).toISOString(), merchant, amount: numericAmount, direction, category, recurringSeriesId: recurringSeriesId || undefined, note, status, unusual, createdManually: true };
+    const transaction: Transaction = { id: crypto.randomUUID(), accountId, date: new Date(`${date}T12:00:00`).toISOString(), merchant, amount: numericAmount, direction, category, recurringSeriesId: recurringSeriesId || undefined, note, status, unusual, createdManually: true, iconKey: iconMode === "manual" ? iconKey : undefined, iconMode };
     updateState((previous) => createTransaction(previous, transaction));
     setSheet(null);
     setToast("Movement added and balance updated");
   };
-  return <form className="form-stack" onSubmit={(event) => { event.preventDefault(); submit(); }}><label>Merchant or source<input required value={merchant} onChange={(event) => setMerchant(event.target.value)} placeholder="e.g. Moon Market" /></label><div className="edit-grid"><label>Amount<input required value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" placeholder="0.00" /></label><label>Date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><label>Direction<select value={direction} onChange={(event) => setDirection(event.target.value as typeof direction)}><option value="expense">Expense</option><option value="income">Income</option></select></label><label>Status<select value={status} onChange={(event) => setStatus(event.target.value as typeof status)}><option value="cleared">Cleared</option><option value="pending">Pending</option></select></label><label>Chamber<select value={category} onChange={(event) => setCategory(event.target.value)}><option>Uncategorised</option><option>Income</option>{state.chambers.map((item) => <option key={item.id}>{item.name}</option>)}</select></label><label>Mapped balance<select required value={accountId} onChange={(event) => setAccountId(event.target.value)}>{state.accounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>Recurring claimant<select value={recurringSeriesId} onChange={(event) => setRecurringSeriesId(event.target.value)}><option value="">Not recurring</option>{state.subscriptions.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label className="check-label"><input type="checkbox" checked={unusual} onChange={(event) => setUnusual(event.target.checked)} /> Mark unusual</label></div><label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional context" /></label><p className="estimate-note">This records an income or expense entry only. DragonMode cannot move money, contact a provider, or schedule a payment.</p><button className="primary-button full" type="submit"><Plus size={18} /> Add movement</button></form>;
+  const iconCategory: FinanceIconCategory = direction === "income" ? "income" : "purchase";
+  return <form className="form-stack" onSubmit={(event) => { event.preventDefault(); submit(); }}>
+    <label>Merchant or source<input required value={merchant} onChange={(event) => setMerchant(event.target.value)} placeholder="e.g. Moon Market" /></label>
+    <FinanceIconPicker title={merchant} category={iconCategory} iconKey={iconKey} iconMode={iconMode} onChange={(key, mode) => { setIconKey(key); setIconMode(mode); }} />
+    <div className="edit-grid">
+      <label>Amount<input required value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" placeholder="0.00" /></label>
+      <label>Date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
+      <label>Direction<select value={direction} onChange={(event) => { setDirection(event.target.value as typeof direction); setIconKey(undefined); setIconMode("automatic"); }}><option value="expense">Expense</option><option value="income">Income</option></select></label>
+      <label>Status<select value={status} onChange={(event) => setStatus(event.target.value as typeof status)}><option value="cleared">Cleared</option><option value="pending">Pending</option></select></label>
+      <label>Chamber<select value={category} onChange={(event) => setCategory(event.target.value)}><option>Uncategorised</option><option>Income</option>{state.chambers.map((item) => <option key={item.id}>{item.name}</option>)}</select></label>
+      <label>Mapped balance<select required value={accountId} onChange={(event) => setAccountId(event.target.value)}>{state.accounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
+      <label>Recurring claimant<select value={recurringSeriesId} onChange={(event) => setRecurringSeriesId(event.target.value)}><option value="">Not recurring</option>{state.subscriptions.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
+      <label className="check-label"><input type="checkbox" checked={unusual} onChange={(event) => setUnusual(event.target.checked)} /> Mark unusual</label>
+    </div>
+    <label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional context" /></label>
+    <p className="estimate-note">This records an income or expense entry only. DragonMode cannot move money, contact a provider, or schedule a payment.</p>
+    <button className="primary-button full" type="submit"><Plus size={18} /> Add movement</button>
+  </form>;
 }
 
 function AddSubscription({ state, updateState, setSheet, setToast }: { state: DragonState; updateState: (updater: (state: DragonState) => DragonState) => void; setSheet: (sheet: Sheet) => void; setToast: (toast: string) => void }) {
@@ -2004,7 +2149,22 @@ function AddSubscription({ state, updateState, setSheet, setToast }: { state: Dr
   const [accountId, setAccountId] = useState(state.accounts[0]?.id ?? "");
   const [reminderDays, setReminderDays] = useState(3);
   const [cancellationNotes, setCancellationNotes] = useState("");
-  return <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (!name || !Number(amount)) return; const numericAmount = Number(amount); updateState((previous) => ({ ...previous, subscriptions: [...previous.subscriptions, { id: crypto.randomUUID(), name, amount: numericAmount, cadence, nextCharge: new Date(`${nextCharge}T12:00:00`).toISOString(), categoryId: "tribute", accountId, usageCount: 0, usageEvents: [], lastUsed: null, priceHistory: [{ amount: numericAmount, changedAt: new Date().toISOString() }], trackingMode, valueRating: "Not rated", cancellationNotes, reminderDays, reminderEnabled: false, usageQuestDays: 30, questEnabled: true, color: "#5b55d6", glyph: name.slice(0, 1).toUpperCase() }] })); setSheet(null); setToast("Claimant added"); }}><label>Claimant name<input required value={name} onChange={(event) => setName(event.target.value)} /></label><div className="edit-grid"><label>Amount<input required inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label>Cadence<select value={cadence} onChange={(event) => setCadence(event.target.value as typeof cadence)}><option value="weekly">Weekly</option><option value="fortnightly">Fortnightly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annual">Annual</option></select></label><label>Next charge<input type="date" value={nextCharge} onChange={(event) => setNextCharge(event.target.value)} /></label><label>Payment source<select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{state.accounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></label><label>Usage tracking<select value={trackingMode} onChange={(event) => setTrackingMode(event.target.value as typeof trackingMode)}><option value="every-use">Every use</option><option value="weekly">Weekly check</option><option value="monthly">Monthly review</option><option value="off">Do not track</option></select></label><label>Reminder before<select value={reminderDays} onChange={(event) => setReminderDays(Number(event.target.value))}><option value="1">1 day</option><option value="3">3 days</option><option value="5">5 days</option><option value="7">7 days</option></select></label></div><label>Cancellation notes<textarea value={cancellationNotes} onChange={(event) => setCancellationNotes(event.target.value)} placeholder="Optional instructions" /></label><button className="primary-button full" type="submit"><Plus size={18} /> Add claimant</button></form>;
+  const [iconKey, setIconKey] = useState<string>();
+  const [iconMode, setIconMode] = useState<FinanceIconMode>("automatic");
+  return <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (!name || !Number(amount)) return; const numericAmount = Number(amount); updateState((previous) => ({ ...previous, subscriptions: [...previous.subscriptions, { id: crypto.randomUUID(), name, amount: numericAmount, cadence, nextCharge: new Date(`${nextCharge}T12:00:00`).toISOString(), categoryId: "tribute", accountId, usageCount: 0, usageEvents: [], lastUsed: null, priceHistory: [{ amount: numericAmount, changedAt: new Date().toISOString() }], trackingMode, valueRating: "Not rated", cancellationNotes, reminderDays, reminderEnabled: false, usageQuestDays: 30, questEnabled: true, color: "#5b55d6", glyph: name.slice(0, 1).toUpperCase(), iconKey: iconMode === "manual" ? iconKey : undefined, iconMode }] })); setSheet(null); setToast("Claimant added"); }}>
+    <label>Claimant name<input required value={name} onChange={(event) => setName(event.target.value)} /></label>
+    <FinanceIconPicker title={name} category="subscription" iconKey={iconKey} iconMode={iconMode} onChange={(key, mode) => { setIconKey(key); setIconMode(mode); }} />
+    <div className="edit-grid">
+      <label>Amount<input required inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
+      <label>Cadence<select value={cadence} onChange={(event) => setCadence(event.target.value as typeof cadence)}><option value="weekly">Weekly</option><option value="fortnightly">Fortnightly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annual">Annual</option></select></label>
+      <label>Next charge<input type="date" value={nextCharge} onChange={(event) => setNextCharge(event.target.value)} /></label>
+      <label>Payment source<select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{state.accounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></label>
+      <label>Usage tracking<select value={trackingMode} onChange={(event) => setTrackingMode(event.target.value as typeof trackingMode)}><option value="every-use">Every use</option><option value="weekly">Weekly check</option><option value="monthly">Monthly review</option><option value="off">Do not track</option></select></label>
+      <label>Reminder before<select value={reminderDays} onChange={(event) => setReminderDays(Number(event.target.value))}><option value="1">1 day</option><option value="3">3 days</option><option value="5">5 days</option><option value="7">7 days</option></select></label>
+    </div>
+    <label>Cancellation notes<textarea value={cancellationNotes} onChange={(event) => setCancellationNotes(event.target.value)} placeholder="Optional instructions" /></label>
+    <button className="primary-button full" type="submit"><Plus size={18} /> Add claimant</button>
+  </form>;
 }
 
 function AddWish({ state, updateState, setSheet, setToast }: { state: DragonState; updateState: (updater: (state: DragonState) => DragonState) => void; setSheet: (sheet: Sheet) => void; setToast: (toast: string) => void }) {
